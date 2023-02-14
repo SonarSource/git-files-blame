@@ -77,10 +77,14 @@ public class BlameGenerator {
   }
 
   private void processOne(StatefulCommit current) throws IOException {
-    RevCommit parentCommit = current.getParentCommit();
+    processCommit(current, 0, true);
+  }
+
+  private void processCommit(StatefulCommit current, int parentNumber, boolean processResult) throws IOException {
+    RevCommit parentCommit = current.getParentCommit(parentNumber);
     revPool.parseHeaders(parentCommit);
     StatefulCommit parent = statefulCommitFactory.create(revPool.getObjectReader(), parentCommit);
-    fileBlamer.blame(revPool.getObjectReader(), parent, current);
+    fileBlamer.blame(revPool.getObjectReader(), parent, current, processResult);
 
     if (!parent.getFiles().isEmpty()) {
       push(parent);
@@ -92,9 +96,14 @@ public class BlameGenerator {
   }
 
   private void processMerge(StatefulCommit commitCandidate) throws IOException {
-    // TODO - for the time being, just pick the first parent
-    System.out.println("MERGE COMMIT");
-    processOne(commitCandidate);
+    int parentCount = commitCandidate.getParentCount();
+    for (int i = 0; i < parentCount; i++) {
+      processCommit(commitCandidate, i, false);
+    }
+
+    //Only process the result at the end, when all the regions has been assigned to each parent
+    fileBlamer.processResult(commitCandidate);
+
   }
 
   private void close() {
