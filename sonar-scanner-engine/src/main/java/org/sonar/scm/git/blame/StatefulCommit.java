@@ -33,36 +33,22 @@ public class StatefulCommit {
     .thenComparing(StatefulCommit::getCommit);
 
   private final RevCommit sourceCommit;
-  private final Map<String, FileCandidate> filesByPath;
+  private final Map<String, List<FileCandidate>> filesByPath;
 
   StatefulCommit(RevCommit commit, List<FileCandidate> files) {
     this.sourceCommit = commit;
-    this.filesByPath = files.stream().collect(Collectors.toMap(FileCandidate::getPath, f -> f));
+    this.filesByPath = files.stream().collect(Collectors.groupingBy(FileCandidate::getPath));
   }
 
-  public FileCandidate getFile(String filePath) {
-    return filesByPath.get(filePath);
+  /**
+   * Get files given their path in the commit that this object represents
+   */
+  public Collection<FileCandidate> getFilesByPath(String filePath) {
+    return filesByPath.getOrDefault(filePath, List.of());
   }
 
-  public Collection<FileCandidate> getFiles() {
-    return filesByPath.values();
-  }
-
-  public void removeFilesWithoutRegions() {
-    filesByPath.entrySet().removeIf(next -> next.getValue().getRegionList() == null);
-  }
-
-  public int linesToBlame() {
-    return filesByPath.values().stream().mapToInt(f -> linesInRegionList(f.getRegionList())).sum();
-  }
-
-  private static int linesInRegionList(Region r) {
-    int size = 0;
-    while (r != null) {
-      size += r.length;
-      r = r.next;
-    }
-    return size;
+  public Collection<FileCandidate> getAllFiles() {
+    return filesByPath.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
   }
 
   RevCommit getCommit() {
@@ -73,14 +59,9 @@ public class StatefulCommit {
     return sourceCommit.getParentCount();
   }
 
-  RevCommit getParentCommit() {
-    return sourceCommit.getParent(0);
-  }
-
   RevCommit getParentCommit(int number) {
     return sourceCommit.getParent(number);
   }
-
 
   int getTime() {
     return sourceCommit.getCommitTime();

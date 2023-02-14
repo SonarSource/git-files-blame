@@ -20,20 +20,28 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryBuilder;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.treewalk.TreeWalk;
 import org.junit.Test;
 
 public class BlameGeneratorTest {
@@ -45,20 +53,29 @@ public class BlameGeneratorTest {
       RepositoryBlameCommand repoBlameCmd = new RepositoryBlameCommand(repo)
         .setTextComparator(RawTextComparator.WS_IGNORE_ALL);
       BlameResult result = repoBlameCmd.call();
+      writeResults("/home/meneses/after.txt", result);
+    }
+  }
 
-      // uncomment to see the actual blame and validate the output
-      //System.out.println("===== results ======");
-      for (BlameResult.FileBlame file : result.getFileBlames()) {
-        //System.out.println(file.getPath());
-        for (int i = 0; i < file.lines(); i++) {
-          //System.out.println("   " + i + " " + file.getAuthors()[i] + " " + file.getCommits()[i]);
+  private static void writeResults(String filename, BlameResult result) throws IOException {
+    Map<String, BlameResult.FileBlame> ordered = new TreeMap<>();
+    result.getFileBlames().forEach(f -> ordered.put(f.getPath(), f));
+    Path resultFile = Paths.get(filename);
+
+    try (Writer w = Files.newBufferedWriter(resultFile, StandardCharsets.UTF_8)) {
+      for (Map.Entry<String, BlameResult.FileBlame> e : ordered.entrySet()) {
+        w.write(e.getKey() + "\n");
+        for (int i = 0; i < e.getValue().lines(); i++) {
+          String email = e.getValue().getAuthors()[i] != null ? e.getValue().getAuthors()[i].getEmailAddress() : "null";
+          String name = e.getValue().getCommits()[i] != null ? e.getValue().getCommits()[i].getName() : "null";
+          w.write(email + " " + name + "\n");
         }
       }
     }
   }
 
   @Test
-  public void testOldImplementation() throws IOException, GitAPIException, InterruptedException {
+  public void testOldImplementation() throws IOException, InterruptedException {
     ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     try (Repository repo = loadRepository(projectDir)) {
@@ -83,10 +100,8 @@ public class BlameGeneratorTest {
   }
 
   private Collection<String> readFiles(Repository repository) throws IOException {
-    CommitFileTreeReader treeReader = new CommitFileTreeReader(repository);
     RevCommit head = repository.parseCommit(repository.resolve(Constants.HEAD));
-    return treeReader.findFiles(repository.newObjectReader(), head).stream().map(CommitFileTreeReader.CommitFile::getPath)
-            .collect(Collectors.toList());
+    return findFiles(repository.newObjectReader(), head);
   }
 
   private Repository loadRepository(Path dir) throws IOException {
@@ -94,5 +109,18 @@ public class BlameGeneratorTest {
       .findGitDir(dir.toFile())
       .setMustExist(true)
       .build();
+  }
+
+  private List<String> findFiles(ObjectReader objectReader, RevCommit commit) throws IOException {
+    List<String> files = new LinkedList<>();
+
+    TreeWalk treeWalk = new TreeWalk(objectReader);
+    treeWalk.setRecursive(true);
+    treeWalk.reset(commit.getTree());
+
+    while (treeWalk.next()) {
+      files.add(treeWalk.getPathString());
+    }
+    return files;
   }
 }

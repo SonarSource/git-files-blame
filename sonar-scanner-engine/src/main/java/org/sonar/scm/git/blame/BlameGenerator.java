@@ -45,8 +45,8 @@ public class BlameGenerator {
   }
 
   private void prepareStartCommit(ObjectId startCommit) throws IOException {
-    RevCommit headCommit = revPool.parseCommit(startCommit);
-    StatefulCommit statefulStartCommit = statefulCommitFactory.create(revPool.getObjectReader(), headCommit);
+    RevCommit startRevCommit = revPool.parseCommit(startCommit);
+    StatefulCommit statefulStartCommit = statefulCommitFactory.create(revPool.getObjectReader(), startRevCommit);
     fileBlamer.initialize(revPool.getObjectReader(), statefulStartCommit);
     push(statefulStartCommit);
   }
@@ -61,7 +61,7 @@ public class BlameGenerator {
 
     for (int i = 1; !queue.isEmpty(); i++) {
       StatefulCommit current = queue.pollFirst();
-      System.out.println(i + " " + current + ", files left to blame: " + current.getFiles().size() + ", lines to blame: " + current.linesToBlame());
+      System.out.println(i + " " + current + ", files left to blame: " + current.getAllFiles().size());
 
       int pCnt = current.getParentCount();
       if (pCnt == 1) {
@@ -70,23 +70,23 @@ public class BlameGenerator {
         processMerge(current);
       } else {
         // no more parents, so blame all remaining regions to the current commit
-        fileBlamer.blameLastCommit(current);
+        fileBlamer.processResult(current);
       }
     }
     close();
   }
 
   private void processOne(StatefulCommit current) throws IOException {
-    processCommit(current, 0, true);
+    processCommit(current, 0);
+    fileBlamer.processResult(current);
   }
 
-  private void processCommit(StatefulCommit current, int parentNumber, boolean processResult) throws IOException {
+  private void processCommit(StatefulCommit current, int parentNumber) throws IOException {
     RevCommit parentCommit = current.getParentCommit(parentNumber);
     revPool.parseHeaders(parentCommit);
-    StatefulCommit parent = statefulCommitFactory.create(revPool.getObjectReader(), parentCommit);
-    fileBlamer.blame(revPool.getObjectReader(), parent, current, processResult);
+    StatefulCommit parent = fileBlamer.blame(revPool.getObjectReader(), parentCommit, current);
 
-    if (!parent.getFiles().isEmpty()) {
+    if (!parent.getAllFiles().isEmpty()) {
       push(parent);
     }
 
@@ -98,12 +98,11 @@ public class BlameGenerator {
   private void processMerge(StatefulCommit commitCandidate) throws IOException {
     int parentCount = commitCandidate.getParentCount();
     for (int i = 0; i < parentCount; i++) {
-      processCommit(commitCandidate, i, false);
+      processCommit(commitCandidate, i);
     }
 
-    //Only process the result at the end, when all the regions has been assigned to each parent
+    //Only process the result at the end, when all the regions have been assigned to each parent
     fileBlamer.processResult(commitCandidate);
-
   }
 
   private void close() {

@@ -21,6 +21,7 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.text.MessageFormat;
+import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.api.GitCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoHeadException;
@@ -50,7 +51,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     return this;
   }
 
-  public RepositoryBlameCommand setStartCommit(AnyObjectId commit) {
+  public RepositoryBlameCommand setStartCommit(@Nullable AnyObjectId commit) {
     this.startCommit = commit.toObjectId();
     return this;
   }
@@ -67,9 +68,9 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     try {
       ObjectId commit = startCommit != null ? startCommit : getHead();
       BlobReader blobReader = new BlobReader();
-      FileBlamer fileBlamer = new FileBlamer(diffAlgorithm, textComparator, blobReader, blameResult);
-      CommitFileTreeReader commitFileTreeReader = new CommitFileTreeReader(repo);
-      StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(commitFileTreeReader);
+      FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(repo);
+      FileBlamer fileBlamer = new FileBlamer(filteredRenameDetector, diffAlgorithm, textComparator, blobReader, blameResult);
+      StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory();
       BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, statefulCommitFactory);
       blameGenerator.compute(commit);
     } catch (IOException e) {
