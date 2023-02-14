@@ -77,6 +77,11 @@ public class StatefulCommit {
     return sourceCommit.getParent(0);
   }
 
+  RevCommit getParentCommit(int number) {
+    return sourceCommit.getParent(number);
+  }
+
+
   int getTime() {
     return sourceCommit.getCommitTime();
   }

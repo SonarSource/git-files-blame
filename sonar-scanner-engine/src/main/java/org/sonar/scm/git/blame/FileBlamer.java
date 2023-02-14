@@ -27,6 +27,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.diff.DiffAlgorithm;
 import org.eclipse.jgit.diff.EditList;
@@ -74,10 +75,27 @@ public class FileBlamer {
     }
   }
 
-  public void blame(ObjectReader objectReader, StatefulCommit parent, StatefulCommit source) {
+  public void blame(ObjectReader objectReader, StatefulCommit parent, StatefulCommit source, boolean processResult) {
+    runFutureTaskOnCommit(source, file -> {
+      blameFile(objectReader, file, parent, source.getCommit());
+      if (processResult) {
+        processResult(source, file);
+      }
+    });
+    parent.removeFilesWithoutRegions();
+  }
+
+  public void processResult(StatefulCommit source) {
+    runFutureTaskOnCommit(source, (file -> processResult(source, file)));
+  }
+
+  private void runFutureTaskOnCommit(StatefulCommit source, Consumer<FileCandidate> runnable) {
     List<Future<Void>> tasks = new ArrayList<>();
     for (FileCandidate sourceFile : source.getFiles()) {
-      tasks.add(executor.submit(() -> blameFile(objectReader, sourceFile, parent, source.getCommit())));
+      tasks.add(executor.submit(() -> {
+        runnable.accept(sourceFile);
+        return null;
+      }));
     }
     try {
       for (Future<Void> f : tasks) {
@@ -86,8 +104,12 @@ public class FileBlamer {
     } catch (InterruptedException | ExecutionException | TimeoutException e) {
       throw new IllegalStateException(e);
     }
+  }
 
-    parent.removeFilesWithoutRegions();
+  private void processResult(StatefulCommit source, FileCandidate sourceFile) {
+    if (sourceFile.getRegionList() != null) {
+      blameResult.process(source.getCommit(), sourceFile);
+    }
   }
 
   private Void blameFile(ObjectReader objectReader, FileCandidate sourceFile, StatefulCommit parent, RevCommit commit) {
@@ -95,10 +117,6 @@ public class FileBlamer {
 
     if (parentFile != null) {
       splitBlameWithParent(objectReader, parentFile, sourceFile);
-    }
-
-    if (sourceFile.getRegionList() != null) {
-      blameResult.process(commit, sourceFile);
     }
     return null;
   }

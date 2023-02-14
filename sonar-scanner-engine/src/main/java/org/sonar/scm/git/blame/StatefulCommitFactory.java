@@ -40,4 +40,3 @@ public class StatefulCommitFactory {
     return new StatefulCommit(commit, commitFiles);
   }
 }
-q
