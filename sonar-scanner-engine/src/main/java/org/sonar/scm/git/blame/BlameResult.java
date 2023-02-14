@@ -43,7 +43,7 @@ public class BlameResult {
       int resLine = fileCandidate.getRegionList().resultStart;
       int resEnd = getResultEnd(fileCandidate.getRegionList());
 
-      FileBlame fileBlame = fileBlameByPath.get(fileCandidate.getPath());
+      FileBlame fileBlame = fileBlameByPath.get(fileCandidate.getOriginalPath());
       for (; resLine < resEnd; resLine++) {
         fileBlame.commits[resLine] = commit;
         fileBlame.authors[resLine] = srcAuthor;

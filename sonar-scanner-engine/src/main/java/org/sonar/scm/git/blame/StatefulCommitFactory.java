@@ -20,23 +20,30 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.treewalk.TreeWalk;
 
 public class StatefulCommitFactory {
-  private final CommitFileTreeReader commitFileTree;
-
-  public StatefulCommitFactory(CommitFileTreeReader commitFileTree) {
-    this.commitFileTree = commitFileTree;
-  }
-
+  /**
+   * Find all files in a given commit.
+   */
   public StatefulCommit create(ObjectReader objectReader, RevCommit commit) throws IOException {
-    List<FileCandidate> commitFiles = commitFileTree.findFiles(objectReader, commit)
-      .stream()
-      .map(f -> new FileCandidate(commit, f.getPath(), f.getObjectId()))
-      .collect(Collectors.toList());
-    return new StatefulCommit(commit, commitFiles);
+    MutableObjectId idBuf = new MutableObjectId();
+    List<FileCandidate> files = new LinkedList<>();
+
+    TreeWalk treeWalk = new TreeWalk(objectReader);
+    treeWalk.setRecursive(true);
+    treeWalk.reset(commit.getTree());
+
+    while (treeWalk.next()) {
+      treeWalk.getObjectId(idBuf, 0);
+      files.add(new FileCandidate(treeWalk.getPathString(), treeWalk.getPathString(), idBuf.toObjectId()));
+    }
+    return new StatefulCommit(commit, files);
   }
 }
