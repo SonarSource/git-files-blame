@@ -99,8 +99,8 @@ class FileCandidate {
       // If there are no more regions left, neither side has any more responsibility for the result. Remaining edits can
       // be safely ignored.
       if (r == null) {
-				return;
-			}
+        return;
+      }
 
       Edit e = editList.get(eIdx);
 
@@ -154,18 +154,18 @@ class FileCandidate {
     }
 
     if (r == null) {
-			return;
-		}
+      return;
+    }
 
     // For any remaining region, pass the blame onto A after shifting the source start to account for the difference between the two.
     Edit e = editList.get(editList.size() - 1);
     int endB = e.getEndB();
     int d = endB - e.getEndA();
     if (aTail == null) {
-			a.regionList = r;
-		} else {
-			aTail.next = r;
-		}
+      a.regionList = r;
+    } else {
+      aTail.next = r;
+    }
     do {
       if (endB <= r.sourceStart)
         r.sourceStart -= d;
@@ -243,9 +243,11 @@ class FileCandidate {
   public String toString() {
     StringBuilder r = new StringBuilder();
     r.append("Candidate[");
-    r.append(sourcePath);
+    r.append("source path: " + sourcePath);
+    r.append(", original path: " + originalPath);
+
     if (regionList != null) {
-      r.append(" regions:").append(regionList);
+      r.append(", regions:").append(regionList);
     }
     r.append("]");
     return r.toString();
