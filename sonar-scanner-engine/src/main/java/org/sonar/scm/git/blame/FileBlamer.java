@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -87,7 +86,7 @@ public class FileBlamer {
     diffEntries = detectRenames(source, diffEntries);
 
     Set<String> changedFilePaths = new HashSet<>();
-    List<FileCandidate> parentFiles = new LinkedList<>();
+    List<FileCandidate> parentFiles = new ArrayList<>();
     List<Future<?>> tasks = new ArrayList<>();
 
     for (DiffEntry entry : diffEntries) {
@@ -102,6 +101,10 @@ public class FileBlamer {
         case MODIFY:
           Collection<FileCandidate> modifiedFiles = source.getFilesByPath(entry.getNewPath());
           for (FileCandidate modifiedFile : modifiedFiles) {
+            if (modifiedFile.getRegionList() == null) {
+              // all regions may have been moved to another parent
+              continue;
+            }
             FileCandidate parentFile = new FileCandidate(modifiedFile.getOriginalPath(), entry.getOldPath(), entry.getOldId().toObjectId());
             parentFiles.add(parentFile);
             tasks.add(executor.submit(() -> splitBlameWithParent(objectReader, parentFile, modifiedFile)));

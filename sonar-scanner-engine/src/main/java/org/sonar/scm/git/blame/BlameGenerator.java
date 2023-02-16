@@ -20,9 +20,8 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.eclipse.jgit.api.errors.NoHeadException;
@@ -55,42 +54,25 @@ public class BlameGenerator {
     push(statefulStartCommit);
   }
 
-  private void push(StatefulCommit commitCandidate) {
-    if (queue.contains(commitCandidate)) {
-      StatefulCommit existingCommit = queue.stream()
-        .filter(e -> e.getCommit().equals(commitCandidate.getCommit()))
-        .findFirst().orElseThrow();
+  private void push(StatefulCommit newCommit) {
+    if (queue.contains(newCommit)) {
+      StatefulCommit existingCommit = queue.ceiling(newCommit);
+      Map<PathAndOriginalPath, FileCandidate> newCommitFilesByPaths = newCommit.getAllFiles().stream()
+        .collect(Collectors.toMap(PathAndOriginalPath::new, f -> f));
 
+      Map<PathAndOriginalPath, FileCandidate> existingCommitFilesByPaths = existingCommit.getAllFiles().stream()
+        .collect(Collectors.toMap(PathAndOriginalPath::new, f -> f));
 
-      Map<String, List<FileCandidate>> commitFileCandidateByOriginalPath = commitCandidate.getAllFiles().stream().collect(Collectors.groupingBy(FileCandidate::getPath));
-
-
-      for (FileCandidate file : existingCommit.getAllFiles()) {
-        List<FileCandidate> fileCandidates = commitFileCandidateByOriginalPath.get(file.getOriginalPath());
-
-        if (fileCandidates != null) {
-          for (FileCandidate fileCandidate : fileCandidates) {
-            if (fileCandidate != null && file.getPath().equals(fileCandidate.getPath())) {
-              file.mergeRegions(fileCandidate);
-            }
-          }
+      for (Map.Entry<PathAndOriginalPath, FileCandidate> newFiles : newCommitFilesByPaths.entrySet()) {
+        if (existingCommitFilesByPaths.containsKey(newFiles.getKey())) {
+          existingCommitFilesByPaths.get(newFiles.getKey()).mergeRegions(newFiles.getValue());
+        } else {
+          existingCommit.addFile(newFiles.getValue());
         }
       }
-
-      List<FileCandidate> remainingFiles = commitCandidate.getAllFiles().stream()
-        .filter(f -> f.getRegionList() != null)
-        .collect(Collectors.toList());
-
-      if (!remainingFiles.isEmpty()) {
-        queue.remove(existingCommit);
-        List<FileCandidate> newFiles = new ArrayList<>(existingCommit.getAllFiles());
-        newFiles.addAll(remainingFiles);
-        StatefulCommit updatedCandidate = new StatefulCommit(commitCandidate.getCommit(), newFiles);
-        queue.add(updatedCandidate);
-      }
-      return;
+    } else {
+      queue.add(newCommit);
     }
-    queue.add(commitCandidate);
   }
 
   public void compute(ObjectId startCommit) throws IOException, NoHeadException {
@@ -145,5 +127,36 @@ public class BlameGenerator {
   private void close() {
     revPool.close();
     queue.clear();
+  }
+
+  private static class PathAndOriginalPath {
+    private final String path;
+    private final String originalPath;
+
+    private PathAndOriginalPath(FileCandidate file) {
+      this(file.getPath(), file.getOriginalPath());
+    }
+
+    private PathAndOriginalPath(String path, String originalPath) {
+      this.path = path;
+      this.originalPath = originalPath;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      PathAndOriginalPath that = (PathAndOriginalPath) o;
+      return Objects.equals(path, that.path) && Objects.equals(originalPath, that.originalPath);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(path, originalPath);
+    }
   }
 }
