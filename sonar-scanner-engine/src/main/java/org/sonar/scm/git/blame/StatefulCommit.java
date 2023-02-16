@@ -30,10 +30,11 @@ import org.eclipse.jgit.revwalk.RevCommit;
 public class StatefulCommit {
   public static final Comparator<StatefulCommit> TIME_COMPARATOR = Comparator
     .comparingInt(StatefulCommit::getTime)
-    .thenComparing(StatefulCommit::getCommit);
+    .thenComparing(StatefulCommit::getCommit).reversed();
 
   private final RevCommit sourceCommit;
   private final Map<String, List<FileCandidate>> filesByPath;
+
 
   StatefulCommit(RevCommit commit, List<FileCandidate> files) {
     this.sourceCommit = commit;

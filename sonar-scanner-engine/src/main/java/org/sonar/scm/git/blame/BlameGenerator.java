@@ -20,7 +20,11 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
@@ -52,7 +56,40 @@ public class BlameGenerator {
   }
 
   private void push(StatefulCommit commitCandidate) {
-    // TODO detect nodes that were already seen
+    if (queue.contains(commitCandidate)) {
+      StatefulCommit existingCommit = queue.stream()
+        .filter(e -> e.getCommit().equals(commitCandidate.getCommit()))
+        .findFirst().orElseThrow();
+
+
+      Map<String, List<FileCandidate>> commitFileCandidateByOriginalPath = commitCandidate.getAllFiles().stream().collect(Collectors.groupingBy(FileCandidate::getPath));
+
+
+      for (FileCandidate file : existingCommit.getAllFiles()) {
+        List<FileCandidate> fileCandidates = commitFileCandidateByOriginalPath.get(file.getOriginalPath());
+
+        if (fileCandidates != null) {
+          for (FileCandidate fileCandidate : fileCandidates) {
+            if (fileCandidate != null && file.getPath().equals(fileCandidate.getPath())) {
+              file.mergeRegions(fileCandidate);
+            }
+          }
+        }
+      }
+
+      List<FileCandidate> remainingFiles = commitCandidate.getAllFiles().stream()
+        .filter(f -> f.getRegionList() != null)
+        .collect(Collectors.toList());
+
+      if (!remainingFiles.isEmpty()) {
+        queue.remove(existingCommit);
+        List<FileCandidate> newFiles = new ArrayList<>(existingCommit.getAllFiles());
+        newFiles.addAll(remainingFiles);
+        StatefulCommit updatedCandidate = new StatefulCommit(commitCandidate.getCommit(), newFiles);
+        queue.add(updatedCandidate);
+      }
+      return;
+    }
     queue.add(commitCandidate);
   }
 
@@ -61,7 +98,7 @@ public class BlameGenerator {
 
     for (int i = 1; !queue.isEmpty(); i++) {
       StatefulCommit current = queue.pollFirst();
-      System.out.println(i + " " + current + ", files left to blame: " + current.getAllFiles().size());
+      System.out.println(i + " " + current);
 
       int pCnt = current.getParentCount();
       if (pCnt == 1) {
