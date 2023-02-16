@@ -30,9 +30,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.RawTextComparator;
@@ -45,7 +47,7 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import org.junit.Test;
 
 public class BlameGeneratorTest {
-  private final Path projectDir = Paths.get("/home/meneses/git/sonar-cpp").toAbsolutePath();
+  private final Path projectDir = Paths.get("/home/meneses/git/TypeScript").toAbsolutePath();
 
   @Test
   public void testNewBlameGenerator() throws IOException, GitAPIException {
@@ -53,7 +55,37 @@ public class BlameGeneratorTest {
       RepositoryBlameCommand repoBlameCmd = new RepositoryBlameCommand(repo)
         .setTextComparator(RawTextComparator.WS_IGNORE_ALL);
       BlameResult result = repoBlameCmd.call();
-      writeResults("/home/meneses/after.txt", result);
+      writeResults("/home/meneses/new.txt", result);
+    }
+  }
+
+  @Test
+  public void testOldImplementation() throws IOException, InterruptedException {
+    ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    ConcurrentLinkedQueue<org.eclipse.jgit.blame.BlameResult> results = new ConcurrentLinkedQueue<>();
+    try (Repository repo = loadRepository(projectDir)) {
+      Collection<String> paths = readFiles(repo);
+      AtomicInteger i = new AtomicInteger(0);
+      for (String p : paths) {
+        executorService.submit(() -> {
+          try {
+            System.out.println(i.incrementAndGet() + "/" + paths.size()+ " " + p);
+            org.eclipse.jgit.blame.BlameResult blame = Git.wrap(repo).blame()
+              // Equivalent to -w command line option
+              .setTextComparator(RawTextComparator.WS_IGNORE_ALL)
+              .setFilePath(p).call();
+            if (blame != null) {
+              results.add(blame);
+            }
+          } catch (Exception e) {
+            e.printStackTrace();
+          }
+        });
+      }
+
+      executorService.shutdown();
+      executorService.awaitTermination(1, TimeUnit.HOURS);
+      writeResultsOldImplementation("/home/meneses/old.txt", results);
     }
   }
 
@@ -74,28 +106,20 @@ public class BlameGeneratorTest {
     }
   }
 
-  @Test
-  public void testOldImplementation() throws IOException, InterruptedException {
-    ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+  private static void writeResultsOldImplementation(String filename, Collection<org.eclipse.jgit.blame.BlameResult> results) throws IOException {
+    Map<String, org.eclipse.jgit.blame.BlameResult> ordered = new TreeMap<>();
+    results.forEach(b -> ordered.put(b.getResultPath(), b));
+    Path resultFile = Paths.get(filename);
 
-    try (Repository repo = loadRepository(projectDir)) {
-      Collection<String> paths = readFiles(repo);
-      for (String p : paths) {
-        executorService.submit(() -> {
-          try {
-            System.out.println(p);
-            Git.wrap(repo).blame()
-              // Equivalent to -w command line option
-              .setTextComparator(RawTextComparator.WS_IGNORE_ALL)
-              .setFilePath(p).call();
-          } catch (GitAPIException e) {
-            e.printStackTrace();
-          }
-        });
+    try (Writer w = Files.newBufferedWriter(resultFile, StandardCharsets.UTF_8)) {
+      for (Map.Entry<String, org.eclipse.jgit.blame.BlameResult> e : ordered.entrySet()) {
+        w.write(e.getKey() + "\n");
+        for (int i = 0; i < e.getValue().getResultContents().size(); i++) {
+          String email = e.getValue().getSourceAuthor(i) != null ? e.getValue().getSourceAuthor(i).getEmailAddress() : "null";
+          String name = e.getValue().getSourceCommit(i) != null ? e.getValue().getSourceCommit(i).getName() : "null";
+          w.write(email + " " + name + "\n");
+        }
       }
-
-      executorService.shutdown();
-      executorService.awaitTermination(1, TimeUnit.HOURS);
     }
   }
 

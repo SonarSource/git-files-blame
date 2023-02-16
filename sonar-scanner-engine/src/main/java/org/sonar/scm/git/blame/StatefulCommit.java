@@ -21,6 +21,8 @@ package org.sonar.scm.git.blame;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,11 +36,12 @@ public class StatefulCommit {
 
   private final RevCommit sourceCommit;
   private final Map<String, List<FileCandidate>> filesByPath;
-
+  private final List<FileCandidate> allFiles;
 
   StatefulCommit(RevCommit commit, List<FileCandidate> files) {
     this.sourceCommit = commit;
     this.filesByPath = files.stream().collect(Collectors.groupingBy(FileCandidate::getPath));
+    this.allFiles = files;
   }
 
   /**
@@ -49,7 +52,12 @@ public class StatefulCommit {
   }
 
   public Collection<FileCandidate> getAllFiles() {
-    return filesByPath.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
+    return allFiles;
+  }
+
+  public void addFile(FileCandidate fileCandidate) {
+    filesByPath.computeIfAbsent(fileCandidate.getPath(), k -> new LinkedList<>()).add(fileCandidate);
+    allFiles.add(fileCandidate);
   }
 
   RevCommit getCommit() {

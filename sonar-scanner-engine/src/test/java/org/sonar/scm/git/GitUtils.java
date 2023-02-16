@@ -43,8 +43,8 @@ public class GitUtils {
   public static void createFile(Path worktree, String relativePath, String... lines) throws IOException {
     Path newFile = worktree.resolve(relativePath);
     Files.createDirectories(newFile.getParent());
-    String content = String.join(System.lineSeparator(), lines);
-    Files.write(newFile, content.getBytes(), StandardOpenOption.CREATE);
+    String content = String.join(System.lineSeparator(), lines) + System.lineSeparator();
+    Files.write(newFile, content.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
   }
 
   public static void copyFile(Path worktree, String origin, String dest) throws IOException {
