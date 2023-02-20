@@ -22,15 +22,22 @@ package org.sonar.scm.git.blame;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
+import javax.annotation.Nullable;
 import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
 
 public class StatefulCommitFactory {
+  private final Set<String> filePathsToBlame;
+
+  public StatefulCommitFactory(@Nullable Set<String> filePathsToBlame) {
+    this.filePathsToBlame = filePathsToBlame;
+  }
+
   /**
-   * Find all files in a given commit.
+   * Find all files in a given commit, filtering by the {@link #filePathsToBlame}, if it's set.
    */
   public StatefulCommit create(ObjectReader objectReader, RevCommit commit) throws IOException {
     MutableObjectId idBuf = new MutableObjectId();
@@ -41,6 +48,9 @@ public class StatefulCommitFactory {
     treeWalk.reset(commit.getTree());
 
     while (treeWalk.next()) {
+      if (filePathsToBlame != null && !filePathsToBlame.contains(treeWalk.getPathString())) {
+        continue;
+      }
       treeWalk.getObjectId(idBuf, 0);
       files.add(new FileCandidate(treeWalk.getPathString(), treeWalk.getPathString(), idBuf.toObjectId()));
     }

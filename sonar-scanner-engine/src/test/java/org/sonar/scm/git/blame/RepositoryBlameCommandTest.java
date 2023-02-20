@@ -24,6 +24,8 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
 import org.eclipse.jgit.api.AddCommand;
@@ -41,6 +43,7 @@ import org.junit.rules.TemporaryFolder;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.sonar.scm.git.GitUtils.copyFile;
 import static org.sonar.scm.git.GitUtils.createFile;
 import static org.sonar.scm.git.GitUtils.createRepository;
@@ -59,6 +62,32 @@ public class RepositoryBlameCommandTest {
     baseDir = createNewTempFolder();
     git = createRepository(baseDir);
     blame = new RepositoryBlameCommand(git.getRepository());
+  }
+
+  @Test
+  public void filters_files_to_blame() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1");
+    createFile(baseDir, "fileB", "line1");
+    createFile(baseDir, "fileC", "line1");
+    String c1 = commit("fileA", "fileB", "fileC");
+    BlameResult result = blame.setFilePaths(Set.of("fileA", "fileB")).call();
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath).containsOnly("fileA", "fileB");
+  }
+
+  @Test
+  public void detects_rename_with_file_filter() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1");
+    createFile(baseDir, "fileB", "line2");
+    String c1 = commit("fileA", "fileB");
+
+    createFile(baseDir, "fileC", "line2");
+    rm("fileB");
+    String c2 = commit("fileC");
+
+    BlameResult result = blame.setFilePaths(Set.of("fileC")).call();
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath,
+        b -> Arrays.stream(b.getCommits()).map(RevCommit::getName).collect(Collectors.toList()))
+      .containsOnly(tuple("fileC", List.of(c1)));
   }
 
   /**
