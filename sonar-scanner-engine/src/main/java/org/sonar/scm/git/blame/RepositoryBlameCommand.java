@@ -21,7 +21,8 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.text.MessageFormat;
-import org.eclipse.jgit.annotations.Nullable;
+import java.util.Set;
+import javax.annotation.Nullable;
 import org.eclipse.jgit.api.GitCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoHeadException;
@@ -41,8 +42,9 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
   private DiffAlgorithm diffAlgorithm = new HistogramDiff();
   private RawTextComparator textComparator = RawTextComparator.DEFAULT;
   private ObjectId startCommit = null;
+  private Set<String> filePaths = null;
 
-  protected RepositoryBlameCommand(Repository repo) {
+  public RepositoryBlameCommand(Repository repo) {
     super(repo);
   }
 
@@ -61,6 +63,11 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     return this;
   }
 
+  public RepositoryBlameCommand setFilePaths(@Nullable Set<String> filePaths) {
+    this.filePaths = filePaths;
+    return this;
+  }
+
   @Override
   public BlameResult call() throws GitAPIException {
     BlameResult blameResult = new BlameResult();
@@ -70,7 +77,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
       BlobReader blobReader = new BlobReader();
       FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(repo);
       FileBlamer fileBlamer = new FileBlamer(filteredRenameDetector, diffAlgorithm, textComparator, blobReader, blameResult);
-      StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory();
+      StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(filePaths);
       BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, statefulCommitFactory);
       blameGenerator.compute(commit);
     } catch (IOException e) {
