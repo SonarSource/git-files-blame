@@ -20,6 +20,8 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeSet;
@@ -56,6 +58,9 @@ public class BlameGenerator {
 
   private void push(StatefulCommit newCommit) {
     if (queue.contains(newCommit)) {
+      // this can happen when a branch forks creating another branch, and then they merge again.
+      // From the merge commit, we'll traverse both branches, and we'll reach the commit before the fork twice
+      // The solution is to merge all regions coming from both sides into that node.
       StatefulCommit existingCommit = queue.ceiling(newCommit);
       Map<PathAndOriginalPath, FileCandidate> newCommitFilesByPaths = newCommit.getAllFiles().stream()
         .collect(Collectors.toMap(PathAndOriginalPath::new, f -> f));
@@ -82,11 +87,8 @@ public class BlameGenerator {
       StatefulCommit current = queue.pollFirst();
       System.out.println(i + " " + current);
 
-      int pCnt = current.getParentCount();
-      if (pCnt == 1) {
-        processOne(current);
-      } else if (pCnt > 1) {
-        processMerge(current);
+      if (current.getParentCount() > 0) {
+        process(current);
       } else {
         // no more parents, so blame all remaining regions to the current commit
         fileBlamer.processResult(current);
@@ -95,29 +97,26 @@ public class BlameGenerator {
     close();
   }
 
-  private void processOne(StatefulCommit current) throws IOException {
-    processCommit(current, 0);
-    fileBlamer.processResult(current);
-  }
+  private void process(StatefulCommit commitCandidate) throws IOException {
+    List<RevCommit> parentCommits = new ArrayList<>(commitCandidate.getParentCount());
 
-  private void processCommit(StatefulCommit current, int parentNumber) throws IOException {
-    RevCommit parentCommit = current.getParentCommit(parentNumber);
-    revPool.parseHeaders(parentCommit);
-    StatefulCommit parent = fileBlamer.blame(revPool.getObjectReader(), parentCommit, current);
-
-    if (!parent.getAllFiles().isEmpty()) {
-      push(parent);
+    for (int i = 0; i < commitCandidate.getParentCount(); i++) {
+      RevCommit parentCommit = commitCandidate.getParentCommit(i);
+      revPool.parseHeaders(parentCommit);
+      parentCommits.add(parentCommit);
     }
 
-    if (current.getCommit() == null) {
-      // TODO not sure in what situation this can happen
+    List<StatefulCommit> parentStatefulCommits;
+    if (parentCommits.size() > 1) {
+      parentStatefulCommits = fileBlamer.blameParents(parentCommits, commitCandidate);
+    } else {
+      parentStatefulCommits = List.of(fileBlamer.blameParent(parentCommits.get(0), commitCandidate));
     }
-  }
 
-  private void processMerge(StatefulCommit commitCandidate) throws IOException {
-    int parentCount = commitCandidate.getParentCount();
-    for (int i = 0; i < parentCount; i++) {
-      processCommit(commitCandidate, i);
+    for (StatefulCommit parentStatefulCommit : parentStatefulCommits) {
+      if (!parentStatefulCommit.getAllFiles().isEmpty()) {
+        push(parentStatefulCommit);
+      }
     }
 
     //Only process the result at the end, when all the regions have been assigned to each parent

@@ -19,25 +19,18 @@
  */
 package org.sonar.scm.git.blame;
 
-import java.io.IOException;
-import org.eclipse.jgit.diff.RawText;
-import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectLoader;
-import org.eclipse.jgit.lib.ObjectReader;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Reads the contents of an object from git storage (typically a file)
- */
-public class BlobReader {
-  public RawText loadText(ObjectReader objectReader, ObjectId objectId) {
-    try {
-      // TODO applySmudgeFilter? See implementation in Candidate#loadText. Apparently only used for the support of
-      // git Large File Storage (LFS)
-      ObjectLoader open = objectReader.open(objectId, Constants.OBJ_BLOB);
-      return new RawText(open.getCachedBytes(Integer.MAX_VALUE));
-    } catch (IOException e) {
-      throw new IllegalStateException(e);
-    }
+public class BlameThreadFactory implements ThreadFactory {
+  private static final String NAME_PREFIX = "git-blame-";
+  private final AtomicInteger count = new AtomicInteger(0);
+
+  @Override
+  public Thread newThread(Runnable r) {
+    Thread t = new Thread(r);
+    t.setName(NAME_PREFIX + count.getAndIncrement());
+    t.setDaemon(true);
+    return t;
   }
 }

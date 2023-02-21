@@ -32,29 +32,31 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
 import org.eclipse.jgit.diff.DiffAlgorithm;
-import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.diff.RawTextComparator;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.treewalk.TreeWalk;
-import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.sonar.scm.git.blame.FileTreeComparator.DiffFile;
 
 public class FileBlamer {
-  private final ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+  private final ExecutorService executor;
   private final BlobReader fileReader;
   private final DiffAlgorithm diffAlgorithm;
   private final RawTextComparator textComparator;
   private final BlameResult blameResult;
-  private final FilteredRenameDetector filteredRenameDetector;
+  private final FileTreeComparator fileTreeComparator;
+  private ObjectReader objectReader;
 
-  public FileBlamer(FilteredRenameDetector filteredRenameDetector, DiffAlgorithm diffAlgorithm, RawTextComparator rawTextComparator, BlobReader fileReader, BlameResult blameResult) {
+  public FileBlamer(FileTreeComparator fileTreeComparator, DiffAlgorithm diffAlgorithm, RawTextComparator rawTextComparator, BlobReader fileReader,
+    BlameResult blameResult, boolean multithreading) {
     this.diffAlgorithm = diffAlgorithm;
     this.textComparator = rawTextComparator;
     this.fileReader = fileReader;
     this.blameResult = blameResult;
-    this.filteredRenameDetector = filteredRenameDetector;
+    this.fileTreeComparator = fileTreeComparator;
+    this.executor = multithreading ? Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new BlameThreadFactory()) : SameThreadExecutorService.INSTANCE;
   }
 
   /**
@@ -62,12 +64,14 @@ public class FileBlamer {
    * also the arrays that will contain the blame results
    */
   public void initialize(ObjectReader objectReader, StatefulCommit commit) {
+    this.objectReader = objectReader;
     for (FileCandidate fileCandidate : commit.getAllFiles()) {
       RawText rawText = fileReader.loadText(objectReader, fileCandidate.getBlob());
 
       fileCandidate.setRegionList(new Region(0, 0, rawText.size()));
       blameResult.initialize(fileCandidate.getPath(), rawText.size());
     }
+    fileTreeComparator.initialize(objectReader, commit);
   }
 
   /**
@@ -81,85 +85,118 @@ public class FileBlamer {
     }
   }
 
-  public StatefulCommit blame(ObjectReader objectReader, RevCommit parentCommit, StatefulCommit source) throws IOException {
-    Collection<DiffEntry> diffEntries = getDiffEntries(objectReader, parentCommit, source.getCommit());
-    diffEntries = detectRenames(source, diffEntries);
+  public List<StatefulCommit> blameParents(List<RevCommit> parentCommits, StatefulCommit child) throws IOException {
+    List<List<DiffFile>> fileTreeDiffs = new ArrayList<>(parentCommits.size());
+    List<StatefulCommit> parentStatefulCommits = new ArrayList<>(parentCommits.size());
 
-    Set<String> changedFilePaths = new HashSet<>();
-    List<FileCandidate> parentFiles = new ArrayList<>();
-    List<Future<?>> tasks = new ArrayList<>();
+    // first try to find matches that are unmodified
+    for (RevCommit parentCommit : parentCommits) {
+      StatefulCommit parentStatefulCommit = new StatefulCommit(parentCommit, child.getAllFiles().size());
+      parentStatefulCommits.add(parentStatefulCommit);
 
-    for (DiffEntry entry : diffEntries) {
-      changedFilePaths.add(entry.getNewPath());
-      switch (entry.getChangeType()) {
-        case DELETE:
-        case ADD:
-          // added files will be processed
-          break;
-        case COPY:
-        case RENAME:
-        case MODIFY:
-          Collection<FileCandidate> modifiedFiles = source.getFilesByPath(entry.getNewPath());
-          for (FileCandidate modifiedFile : modifiedFiles) {
-            if (modifiedFile.getRegionList() == null) {
-              // all regions may have been moved to another parent
-              continue;
-            }
-            FileCandidate parentFile = new FileCandidate(modifiedFile.getOriginalPath(), entry.getOldPath(), entry.getOldId().toObjectId());
-            parentFiles.add(parentFile);
-            tasks.add(executor.submit(() -> splitBlameWithParent(objectReader, parentFile, modifiedFile)));
+      // diff files will include added,modified,rename,copy. It will not include unmodified files.
+      fileTreeDiffs.add(fileTreeComparator.compute(parentCommit, child.getCommit(), child.getAllPaths()));
+    }
+
+    // Detect unmodified files (same path)
+    for (int i = 0; i < parentCommits.size(); i++) {
+      Set<String> diffFilePaths = fileTreeDiffs.get(i).stream().map(DiffFile::getNewPath).collect(Collectors.toSet());
+      for (FileCandidate f : child.getAllFiles()) {
+        if (!diffFilePaths.contains(f.getPath())) {
+          // if file wasn't modified, it means it is unmodified. Move it to the parent.
+          moveFileToParent(parentStatefulCommits.get(i), f, f.getPath());
+        }
+      }
+    }
+
+    // Detect unmodified files with RENAME or COPY. They have the exact same BLOB but different paths
+    for (int i = 0; i < parentCommits.size(); i++) {
+      for (DiffFile diffFile : fileTreeDiffs.get(i)) {
+        Collection<FileCandidate> fileCandidates = child.getFilesByPath(diffFile.getNewPath());
+        for (FileCandidate f : fileCandidates) {
+          if (f.getBlob().equals(diffFile.getOldObjectId())) {
+            moveFileToParent(parentStatefulCommits.get(i), f, diffFile.getOldPath());
           }
-          break;
+        }
+      }
+    }
+
+    // try to match regions with parents, using the file tree diffs that we already computed
+    for (int i = 0; i < parentStatefulCommits.size(); i++) {
+      blameWithFileDiffs(parentStatefulCommits.get(i), child, fileTreeDiffs.get(i));
+    }
+    return parentStatefulCommits;
+  }
+
+  /**
+   * Move a copied, renamed or unmodified file to the parent.
+   * The child and parent files have the same BLOB
+   */
+  private static void moveFileToParent(StatefulCommit parent, FileCandidate childFile, String parentPath) {
+    if (childFile.getRegionList() != null) {
+      FileCandidate parentFile = new FileCandidate(childFile.getOriginalPath(), parentPath, childFile.getBlob(), childFile.getRegionList());
+      parent.addFile(parentFile);
+      childFile.setRegionList(null);
+    }
+  }
+
+  public StatefulCommit blameParent(RevCommit parentCommit, StatefulCommit child) throws IOException {
+    List<DiffFile> diffFiles = fileTreeComparator.compute(parentCommit, child.getCommit(), child.getAllPaths());
+    StatefulCommit parent = new StatefulCommit(parentCommit, child.getAllFiles().size());
+    blameWithFileDiffs(parent, child, diffFiles);
+    return parent;
+  }
+
+  private void blameWithFileDiffs(StatefulCommit parent, StatefulCommit child, List<DiffFile> diffFiles) {
+    Set<String> modifiedFilePaths = new HashSet<>();
+    List<Future<FileCandidate>> tasks = new ArrayList<>();
+
+    for (DiffFile file : diffFiles) {
+      modifiedFilePaths.add(file.getNewPath());
+      if (file.getOldPath() != null) {
+        // added files don't have an old path
+        child.getFilesByPath(file.getNewPath())
+          .forEach(modifiedFile -> tasks.add(executor.submit(() -> splitBlameWithParent(file.getOldPath(), file.getOldObjectId(), modifiedFile))));
       }
     }
 
     // move unmodified files to the parent
-    for (FileCandidate f : source.getAllFiles()) {
-      if (!changedFilePaths.contains(f.getPath())) {
-        parentFiles.add(new FileCandidate(f.getOriginalPath(), f.getPath(), f.getBlob(), f.getRegionList()));
-        f.setRegionList(null);
+    for (FileCandidate f : child.getAllFiles()) {
+      if (!modifiedFilePaths.contains(f.getPath())) {
+        moveFileToParent(parent, f, f.getPath());
       }
     }
 
-    waitForTasks(tasks);
-    parentFiles.removeIf(f -> f.getRegionList() == null);
-    return new StatefulCommit(parentCommit, parentFiles);
+    waitForTasks(parent, tasks);
   }
 
-  private List<DiffEntry> detectRenames(StatefulCommit source, Collection<DiffEntry> diffEntries) throws IOException {
-    Set<String> newFilePaths = source.getAllFiles().stream().map(FileCandidate::getPath).collect(Collectors.toSet());
-    return filteredRenameDetector.compute(diffEntries, newFilePaths);
-  }
-
-  private static void waitForTasks(Collection<Future<?>> tasks) {
+  private static void waitForTasks(StatefulCommit statefulParent, Collection<Future<FileCandidate>> tasks) {
     try {
-      for (Future<?> f : tasks) {
-        f.get();
+      for (Future<FileCandidate> f : tasks) {
+        FileCandidate parent = f.get();
+        if (parent != null) {
+          statefulParent.addFile(parent);
+        }
       }
     } catch (InterruptedException | ExecutionException e) {
       throw new IllegalStateException(e);
     }
   }
 
-  private Collection<DiffEntry> getDiffEntries(ObjectReader reader, RevCommit parent, RevCommit commit) throws IOException {
-    TreeWalk treeWalk = new TreeWalk(reader);
-    treeWalk.setRecursive(true);
-    treeWalk.setFilter(TreeFilter.ANY_DIFF);
-    treeWalk.reset(parent.getTree(), commit.getTree());
-    return DiffEntry.scan(treeWalk);
-  }
-
   @CheckForNull
-  public Void splitBlameWithParent(ObjectReader objectReader, FileCandidate parent, FileCandidate source) {
-    if (parent.getBlob().equals(source.getBlob())) {
-      parent.setRegionList(source.getRegionList());
-      source.setRegionList(null);
+  private FileCandidate splitBlameWithParent(String parentPath, ObjectId parentObjectId, FileCandidate source) {
+    if (source.getRegionList() == null) {
+      // all regions may have been moved to another parent
       return null;
     }
+    FileCandidate parent = new FileCandidate(source.getOriginalPath(), parentPath, parentObjectId);
 
-    // the ObjectReader is not thread safe, so we need to clone it
-    // TODO could the fact that we are not using a common ObjectReader be causing bad performance
-    //  when reading the file contents?
+    if (parent.getBlob().equals(source.getBlob())) {
+      moveUnmodifiedFileRegionsToParent(parent, source);
+      return parent;
+    }
+
+    // ObjectReader is not thread safe, so we need to clone it
     ObjectReader reader = objectReader.newReader();
 
     EditList editList = diffAlgorithm.diff(textComparator,
@@ -167,12 +204,17 @@ public class FileBlamer {
       fileReader.loadText(reader, source.getBlob()));
     if (editList.isEmpty()) {
       // Ignoring whitespace (or some other special comparator) can cause non-identical blobs to have an empty edit list
-      parent.setRegionList(source.getRegionList());
-      source.setRegionList(null);
-      return null;
+      moveUnmodifiedFileRegionsToParent(parent, source);
+      return parent;
     }
 
     parent.takeBlame(editList, source);
-    return null;
+    // if the parent has nothing left to blame, don't return it
+    return parent.getRegionList() != null ? parent : null;
+  }
+
+  private static void moveUnmodifiedFileRegionsToParent(FileCandidate parent, FileCandidate child) {
+    parent.setRegionList(child.getRegionList());
+    child.setRegionList(null);
   }
 }

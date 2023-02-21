@@ -20,6 +20,7 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -37,11 +38,12 @@ public class StatefulCommitFactory {
   }
 
   /**
-   * Find all files in a given commit, filtering by the {@link #filePathsToBlame}, if it's set.
+   * Find all files in a given commit, filtered by {@link #filePathsToBlame}, if it's set.
+   * @return a {link StatefulCommit} for the given commit and the files found.
    */
   public StatefulCommit create(ObjectReader objectReader, RevCommit commit) throws IOException {
     MutableObjectId idBuf = new MutableObjectId();
-    List<FileCandidate> files = new LinkedList<>();
+    List<FileCandidate> files = new ArrayList<>();
 
     TreeWalk treeWalk = new TreeWalk(objectReader);
     treeWalk.setRecursive(true);

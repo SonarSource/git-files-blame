@@ -20,48 +20,136 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
-import java.nio.file.LinkOption;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import javax.annotation.CheckForNull;
-import org.eclipse.jgit.api.AddCommand;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.ResetCommand;
-import org.eclipse.jgit.api.RmCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.lib.AnyObjectId;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.sonar.scm.git.GitUtils.copyFile;
 import static org.sonar.scm.git.GitUtils.createFile;
-import static org.sonar.scm.git.GitUtils.createRepository;
 import static org.sonar.scm.git.GitUtils.moveFile;
 
-public class RepositoryBlameCommandTest {
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+public class RepositoryBlameCommandIT extends AbstractGitIT {
+  /**
+   * When a file in a merge content has files in multiple parents, we should prefer to match it with a parent where the matching file
+   * has the same name, if there's any. That should be the case even when it's not the first parent.
+   * All files have the same content:
+   * <pre>
+   *         c1
+   *        /  \
+   * c2 (fileA) \
+   *      \     c3 (fileB)
+   *       \  /
+   *         c4 (fileA)
+   * </pre>
+   */
+  @Test
+  public void prefer_parent_with_same_fileName_over_parent_with_only_same_file_content() throws GitAPIException, IOException {
+    String c1 = commit();
 
-  private Path baseDir;
-  private Git git;
-  private RepositoryBlameCommand blame;
+    createFile(baseDir, "fileA", "line1", "line2");
+    String c2 = commit("fileA");
 
-  @Before
-  public void prepare() throws IOException {
-    baseDir = createNewTempFolder();
-    git = createRepository(baseDir);
-    blame = new RepositoryBlameCommand(git.getRepository());
+    resetHard(c1);
+    createFile(baseDir, "fileB", "line1", "line2");
+    String c3 = commit("fileB");
+
+    merge(c2);
+    rm("fileB");
+    BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
+
+    // prefer to pick c2 (same content and same file name) over c3 (same content but different file name)
+    assertThat(result.getFileBlames())
+      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommits()).map(RevCommit::getName).collect(Collectors.toList()))
+      .containsOnly(tuple("fileA", List.of(c2, c2)));
+  }
+
+  /**
+   * If a file in a merge commit matches the file in one of its parents, all the regions should move to that parent.
+   * In other words, if any single parent exactly matches the merge, follow only that one parent through history.
+   * <pre>
+   *            c1 ()
+   *           |    \
+   * c2 (line1,line3) \
+   *       |        c3 (line1,line2)
+   *       |     /
+   *       | /
+   *       c4 (line1,line2) <----- HEAD
+   * </pre>
+   * In this test, all regions should be moved to c4. Line1 should not be moved to c3.
+   */
+  @Test
+  public void follow_parent_matching_files() throws IOException, GitAPIException {
+    String c1 = commit();
+
+    createFile(baseDir, "fileA", "line1", "line3");
+    String c2 = commit("fileA");
+
+    // branch from c1
+    resetHard(c1);
+    createFile(baseDir, "fileA", "line1", "line2");
+    String c3 = commit("fileA");
+
+    // merge
+    resetHard(c2);
+    String c4 = merge(c3);
+    createFile(baseDir, "fileA", "line1", "line2");
+    git.add().addFilepattern("fileA").call();
+    git.commit().setMessage("merge").call();
+
+    BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
+
+    assertThat(result.getFileBlames())
+      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommits()).map(RevCommit::getName).collect(Collectors.toList()))
+      .containsOnly(tuple("fileA", List.of(c3, c3)));
+  }
+
+  /**
+   * If a file in a merge commit matches the file in one of its parents, all the regions should move to that parent, even if it was renamed.
+   * In other words, if any single parent exactly matches the merge, follow only that one parent through history.
+   * <pre>
+   *            c1 ()
+   *           |    \
+   * c2 (line1,line3) \
+   *       |        c3 (line1,line2)
+   *       |     /
+   *       | /
+   *       c4 (line1,line2) <----- HEAD
+   * </pre>
+   * In this test, all regions should be moved to c4. Line1 should not be moved to c3.
+   */
+  @Test
+  public void follow_parent_matching_files_with_rename() throws IOException, GitAPIException {
+    String c1 = commit();
+
+    createFile(baseDir, "fileA", "line1", "line3");
+    String c2 = commit("fileA");
+
+    // branch from c1
+    resetHard(c1);
+    createFile(baseDir, "fileB", "line1", "line2");
+    String c3 = commit("fileB");
+
+    // merge
+    resetHard(c2);
+    String c4 = merge(c3);
+    rm("fileB");
+    createFile(baseDir, "fileA", "line1", "line2");
+    git.add().addFilepattern("fileA").call();
+    git.commit().setAmend(true).setMessage("merge").call();
+
+    BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
+
+    assertThat(result.getFileBlames())
+      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommits()).map(RevCommit::getName).collect(Collectors.toList()))
+      .containsOnly(tuple("fileA", List.of(c3, c3)));
   }
 
   @Test
@@ -179,7 +267,7 @@ public class RepositoryBlameCommandTest {
    * c2(fileA[modified])  c3(fileB)
    *         \           /
    *         \       /
-   *       c4(fileA) [conflict solved by merging fileA and fileB into fileA. Native git detects this as a rename of fileB]  <--- HEAD
+   *       c4(fileA) [conflict solved by merging fileA and fileB into fileA]  <--- HEAD
    * </pre>
    */
   @Test
@@ -287,62 +375,9 @@ public class RepositoryBlameCommandTest {
   private static void assertAllBlameCommits(BlameResult result, String expectedCommit) {
     Collection<String> allBlameCommits = result.getFileBlames().stream()
       .flatMap(f -> Arrays.stream(f.getCommits()))
-      .map(AnyObjectId::getName)
+      .map(RevCommit::getName)
       .collect(Collectors.toList());
 
     assertThat(allBlameCommits).containsOnly(expectedCommit);
-  }
-
-  /**
-   * For whatever reason we can't add deleted files to the index with 'git add'. It needs to be done explicitly with 'git rm'.
-   */
-  private void rm(String... paths) throws GitAPIException {
-    RmCommand add = git.rm();
-    for (String p : paths) {
-      add.addFilepattern(p);
-    }
-    add.call();
-  }
-
-  /**
-   * returns null if there's a conflict
-   */
-  @CheckForNull
-  private String merge(String commit) throws IOException, GitAPIException {
-    ObjectId c = git.getRepository().resolve(commit);
-    ObjectId newHead = git.merge().include(c).call().getNewHead();
-    return newHead != null ? newHead.getName() : null;
-  }
-
-  private void resetHard(String commit) throws GitAPIException {
-    git.reset()
-      .setMode(ResetCommand.ResetType.HARD)
-      .setRef(commit)
-      .call();
-  }
-
-  private String commitMsg(String msg, String... paths) throws GitAPIException {
-    AddCommand add = git.add();
-    for (String p : paths) {
-      add.addFilepattern(p);
-    }
-    add.call();
-    RevCommit commit = git.commit().setCommitter("joe", "email@email.com").setMessage(msg).call();
-    return commit.getName();
-  }
-
-  private String commit(String... paths) throws GitAPIException {
-    AddCommand add = git.add();
-    for (String p : paths) {
-      add.addFilepattern(p);
-    }
-    add.call();
-    RevCommit commit = git.commit().setCommitter("joe", "email@email.com").setMessage("msg").call();
-    return commit.getName();
-  }
-
-  private Path createNewTempFolder() throws IOException {
-    // This is needed for Windows, otherwise the created File point to invalid (shortened by Windows) temp folder path
-    return temp.newFolder().toPath().toRealPath(LinkOption.NOFOLLOW_LINKS);
   }
 }

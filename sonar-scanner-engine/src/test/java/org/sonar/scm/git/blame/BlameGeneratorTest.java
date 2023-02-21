@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -44,15 +45,19 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryBuilder;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class BlameGeneratorTest {
   private final Path projectDir = Paths.get("/home/meneses/git/TypeScript").toAbsolutePath();
 
   @Test
+  @Ignore
   public void testNewBlameGenerator() throws IOException, GitAPIException {
     try (Repository repo = loadRepository(projectDir)) {
       RepositoryBlameCommand repoBlameCmd = new RepositoryBlameCommand(repo)
+        .setMultithreading(true)
+        .setFilePaths(Set.of("package.json"))
         .setTextComparator(RawTextComparator.WS_IGNORE_ALL);
       BlameResult result = repoBlameCmd.call();
       writeResults("/home/meneses/new.txt", result);
@@ -60,6 +65,7 @@ public class BlameGeneratorTest {
   }
 
   @Test
+  @Ignore
   public void testOldImplementation() throws IOException, InterruptedException {
     ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     ConcurrentLinkedQueue<org.eclipse.jgit.blame.BlameResult> results = new ConcurrentLinkedQueue<>();

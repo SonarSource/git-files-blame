@@ -19,24 +19,41 @@
  */
 package org.sonar.scm.git.blame;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.eclipse.jgit.revwalk.RevCommit;
 
+import static java.util.Collections.emptyList;
+
+/**
+ * Holds a commit and all the files amd their regions left to blame
+ */
 public class StatefulCommit {
   public static final Comparator<StatefulCommit> TIME_COMPARATOR = Comparator
     .comparingInt(StatefulCommit::getTime)
     .thenComparing(StatefulCommit::getCommit).reversed();
 
   private final RevCommit sourceCommit;
+  // There can be multiple FileCandidate per path (in this commit) because there can be multiple original paths
+  // being blamed that end up matching the same file in this commit.
   private final Map<String, List<FileCandidate>> filesByPath;
+  // For performance, we keep the full list instead of collecting all files from filesByPath
   private final List<FileCandidate> allFiles;
+
+  StatefulCommit(RevCommit commit, int expectedNumFiles) {
+    this.sourceCommit = commit;
+    this.filesByPath = new HashMap<>(expectedNumFiles);
+    this.allFiles = new ArrayList<>(expectedNumFiles);
+  }
 
   StatefulCommit(RevCommit commit, List<FileCandidate> files) {
     this.sourceCommit = commit;
@@ -49,6 +66,10 @@ public class StatefulCommit {
    */
   public Collection<FileCandidate> getFilesByPath(String filePath) {
     return filesByPath.getOrDefault(filePath, List.of());
+  }
+
+  public Set<String> getAllPaths() {
+    return filesByPath.keySet();
   }
 
   public Collection<FileCandidate> getAllFiles() {
@@ -87,6 +108,10 @@ public class StatefulCommit {
     return r.toString();
   }
 
+  /**
+   * Two {@link StatefulCommit} equal if they represent the same commit.
+   * Should be consistent with {@link #hashCode} and with {@link #TIME_COMPARATOR}.
+   */
   @Override
   public boolean equals(Object o) {
     if (this == o) {
