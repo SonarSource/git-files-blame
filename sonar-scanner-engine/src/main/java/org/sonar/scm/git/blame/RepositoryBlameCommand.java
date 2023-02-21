@@ -36,33 +36,56 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 
 /**
- * A command, similar to Blame, which collects the blame for all committed files in the repository
+ * A command, similar to Blame, which collects the blame for multiple files in the repository
  */
 public class RepositoryBlameCommand extends GitCommand<BlameResult> {
   private DiffAlgorithm diffAlgorithm = new HistogramDiff();
   private RawTextComparator textComparator = RawTextComparator.DEFAULT;
   private ObjectId startCommit = null;
   private Set<String> filePaths = null;
+  private boolean multithreading = false;
 
   public RepositoryBlameCommand(Repository repo) {
     super(repo);
   }
 
+  /**
+   * Sets the diff algorithm used to compute the differences between 2 files
+   */
   public RepositoryBlameCommand setDiffAlgorithm(DiffAlgorithm diffAlgorithm) {
     this.diffAlgorithm = diffAlgorithm;
     return this;
   }
 
+  /**
+   * Whether multiple threads should be used to speed up the computation. Defaults to false.
+   */
+  public RepositoryBlameCommand setMultithreading(boolean multithreading) {
+    this.multithreading = multithreading;
+    return this;
+  }
+
+  /**
+   * @param commit a commit Object ID or null to use HEAD
+   */
   public RepositoryBlameCommand setStartCommit(@Nullable AnyObjectId commit) {
     this.startCommit = commit.toObjectId();
     return this;
   }
 
+  /**
+   * Sets a text comparator that will be used by the diff algorithm to compute the difference between 2 files
+   */
   public RepositoryBlameCommand setTextComparator(RawTextComparator textComparator) {
     this.textComparator = textComparator;
     return this;
   }
 
+  /**
+   * If set, only the provided file paths will be blamed.
+   *
+   * @param filePaths Files to blame. If null, all committed files will be blamed.
+   */
   public RepositoryBlameCommand setFilePaths(@Nullable Set<String> filePaths) {
     this.filePaths = filePaths;
     return this;
@@ -76,7 +99,8 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
       ObjectId commit = startCommit != null ? startCommit : getHead();
       BlobReader blobReader = new BlobReader();
       FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(repo);
-      FileBlamer fileBlamer = new FileBlamer(filteredRenameDetector, diffAlgorithm, textComparator, blobReader, blameResult);
+      FileTreeComparator fileTreeComparator = new FileTreeComparator(filteredRenameDetector);
+      FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, diffAlgorithm, textComparator, blobReader, blameResult, multithreading);
       StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(filePaths);
       BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, statefulCommitFactory);
       blameGenerator.compute(commit);
