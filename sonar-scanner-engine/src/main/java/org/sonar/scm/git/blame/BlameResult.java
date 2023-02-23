@@ -32,6 +32,10 @@ public class BlameResult {
     return fileBlameByPath.values();
   }
 
+  public Map<String, FileBlame> getFileBlameByPath() {
+    return fileBlameByPath;
+  }
+
   public void initialize(String path, int size) {
     fileBlameByPath.put(path, new FileBlame(path, size));
   }
