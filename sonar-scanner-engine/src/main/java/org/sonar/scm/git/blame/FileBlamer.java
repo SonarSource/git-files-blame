@@ -22,6 +22,7 @@ package org.sonar.scm.git.blame;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -78,9 +79,13 @@ public class FileBlamer {
    * Blame all remaining regions to the commit
    */
   public void processResult(StatefulCommit source) {
+
+    String commitHash = source.getCommit().getName();
+    String authorEmail = source.getCommit().getAuthorIdent().getEmailAddress();
+    Date commitDate = source.getCommit().getAuthorIdent().getWhen();
     for (FileCandidate sourceFile : source.getAllFiles()) {
       if (sourceFile.getRegionList() != null) {
-        blameResult.process(source.getCommit(), sourceFile);
+        blameResult.process(commitHash, commitDate, authorEmail, sourceFile);
       }
     }
   }

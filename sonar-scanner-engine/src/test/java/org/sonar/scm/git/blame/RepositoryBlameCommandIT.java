@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.Test;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
@@ -67,7 +66,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
     // prefer to pick c2 (same content and same file name) over c3 (same content but different file name)
     assertThat(result.getFileBlames())
-      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommits()).map(RevCommit::getName).collect(Collectors.toList()))
+      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommitHashes()).collect(Collectors.toList()))
       .containsOnly(tuple("fileA", List.of(c2, c2)));
   }
 
@@ -107,7 +106,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
     BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
 
     assertThat(result.getFileBlames())
-      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommits()).map(RevCommit::getName).collect(Collectors.toList()))
+      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommitHashes()).collect(Collectors.toList()))
       .containsOnly(tuple("fileA", List.of(c3, c3)));
   }
 
@@ -148,7 +147,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
     BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
 
     assertThat(result.getFileBlames())
-      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommits()).map(RevCommit::getName).collect(Collectors.toList()))
+      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommitHashes()).collect(Collectors.toList()))
       .containsOnly(tuple("fileA", List.of(c3, c3)));
   }
 
@@ -174,7 +173,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
     BlameResult result = blame.setFilePaths(Set.of("fileC")).call();
     assertThat(result.getFileBlames()).extracting(FileBlame::getPath,
-        b -> Arrays.stream(b.getCommits()).map(RevCommit::getName).collect(Collectors.toList()))
+        b -> Arrays.stream(b.getCommitHashes()).collect(Collectors.toList()))
       .containsOnly(tuple("fileC", List.of(c1)));
   }
 
@@ -374,8 +373,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
   private static void assertAllBlameCommits(BlameResult result, String expectedCommit) {
     Collection<String> allBlameCommits = result.getFileBlames().stream()
-      .flatMap(f -> Arrays.stream(f.getCommits()))
-      .map(RevCommit::getName)
+      .flatMap(f -> Arrays.stream(f.getCommitHashes()))
       .collect(Collectors.toList());
 
     assertThat(allBlameCommits).containsOnly(expectedCommit);
