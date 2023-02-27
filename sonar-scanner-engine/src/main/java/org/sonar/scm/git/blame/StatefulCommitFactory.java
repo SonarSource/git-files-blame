@@ -21,7 +21,6 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -29,6 +28,9 @@ import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
+
+import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
+import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
 
 public class StatefulCommitFactory {
   private final Set<String> filePathsToBlame;
@@ -39,6 +41,7 @@ public class StatefulCommitFactory {
 
   /**
    * Find all files in a given commit, filtered by {@link #filePathsToBlame}, if it's set.
+   *
    * @return a {link StatefulCommit} for the given commit and the files found.
    */
   public StatefulCommit create(ObjectReader objectReader, RevCommit commit) throws IOException {
@@ -53,9 +56,16 @@ public class StatefulCommitFactory {
       if (filePathsToBlame != null && !filePathsToBlame.contains(treeWalk.getPathString())) {
         continue;
       }
+      if (!isFile(treeWalk.getRawMode(0))) {
+        continue;
+      }
       treeWalk.getObjectId(idBuf, 0);
       files.add(new FileCandidate(treeWalk.getPathString(), treeWalk.getPathString(), idBuf.toObjectId()));
     }
     return new StatefulCommit(commit, files);
+  }
+
+  private static boolean isFile(int rawMode) {
+    return (rawMode & TYPE_MASK) == TYPE_FILE;
   }
 }
