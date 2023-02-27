@@ -104,8 +104,8 @@ public class BlameGeneratorTest {
       for (Map.Entry<String, BlameResult.FileBlame> e : ordered.entrySet()) {
         w.write(e.getKey() + "\n");
         for (int i = 0; i < e.getValue().lines(); i++) {
-          String email = e.getValue().getAuthors()[i] != null ? e.getValue().getAuthors()[i].getEmailAddress() : "null";
-          String name = e.getValue().getCommits()[i] != null ? e.getValue().getCommits()[i].getName() : "null";
+          String email = e.getValue().getAuthorEmails()[i] != null ? e.getValue().getAuthorEmails()[i] : "null";
+          String name = e.getValue().getCommitHashes()[i] != null ? e.getValue().getCommitHashes()[i] : "null";
           w.write(email + " " + name + "\n");
         }
       }

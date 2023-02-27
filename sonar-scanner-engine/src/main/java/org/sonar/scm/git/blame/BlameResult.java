@@ -20,10 +20,9 @@
 package org.sonar.scm.git.blame;
 
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.revwalk.RevCommit;
 
 public class BlameResult {
   private final Map<String, FileBlame> fileBlameByPath = new HashMap<>();
@@ -40,8 +39,7 @@ public class BlameResult {
     fileBlameByPath.put(path, new FileBlame(path, size));
   }
 
-  public void process(RevCommit commit, FileCandidate fileCandidate) {
-    PersonIdent srcAuthor = commit.getAuthorIdent();
+  public void process(String commitHash, Date commitDate, String authorEmail, FileCandidate fileCandidate) {
 
     while (fileCandidate.getRegionList() != null) {
       int resLine = fileCandidate.getRegionList().resultStart;
@@ -49,8 +47,9 @@ public class BlameResult {
 
       FileBlame fileBlame = fileBlameByPath.get(fileCandidate.getOriginalPath());
       for (; resLine < resEnd; resLine++) {
-        fileBlame.commits[resLine] = commit;
-        fileBlame.authors[resLine] = srcAuthor;
+        fileBlame.commitHashes[resLine] = commitHash;
+        fileBlame.commitDates[resLine] = commitDate;
+        fileBlame.authorEmails[resLine] = authorEmail;
       }
       fileCandidate.setRegionList(fileCandidate.getRegionList().next);
     }
@@ -62,29 +61,36 @@ public class BlameResult {
 
   public static class FileBlame {
     private final String path;
-    private final RevCommit[] commits;
-    private final PersonIdent[] authors;
+    private final String[] commitHashes;
+    private final Date[] commitDates;
+    private final String[] authorEmails;
 
     public FileBlame(String path, int numberLines) {
       this.path = path;
-      this.commits = new RevCommit[numberLines];
-      this.authors = new PersonIdent[numberLines];
+      this.commitHashes = new String[numberLines];
+      this.commitDates = new Date[numberLines];
+      this.authorEmails = new String[numberLines];
     }
 
     public String getPath() {
       return path;
     }
 
-    public RevCommit[] getCommits() {
-      return commits;
+
+    public String[] getCommitHashes() {
+      return commitHashes;
     }
 
-    public PersonIdent[] getAuthors() {
-      return authors;
+    public Date[] getCommitDates() {
+      return commitDates;
+    }
+
+    public String[] getAuthorEmails() {
+      return authorEmails;
     }
 
     public int lines() {
-      return commits.length;
+      return commitHashes.length;
     }
   }
 }
