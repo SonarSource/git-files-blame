@@ -41,19 +41,24 @@ import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
 import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
 
 public class FileTreeComparator {
+  /**
+   * If the number of files we are interested in is smaller than this threshold, create a filter to only look
+   * for these files. Creating the filter is expensive and is not worth it for large number of files.
+   */
+  private final static int THRESHOLD_FILTER_FILES = 100;
+
   private final MutableObjectId idBuf = new MutableObjectId();
   private final FilteredRenameDetector filteredRenameDetector;
+
   private TreeWalk treeWalk;
   private TreeFilter filesAndAnyDiffFilter = null;
+  private Set<String> filterFilePaths = null;
 
   public FileTreeComparator(FilteredRenameDetector filteredRenameDetector) {
     this.filteredRenameDetector = filteredRenameDetector;
   }
 
-  public void initialize(ObjectReader objectReader, StatefulCommit commit) {
-    // this is expensive to compute and tests show that it's not worth to recompute when the paths change
-    TreeFilter pathFilterGroup = PathFilterGroup.createFromStrings(commit.getAllPaths());
-    filesAndAnyDiffFilter = AndTreeFilter.create(pathFilterGroup, TreeFilter.ANY_DIFF);
+  public void initialize(ObjectReader objectReader) {
     treeWalk = new TreeWalk(objectReader);
     treeWalk.setRecursive(true);
   }
@@ -64,9 +69,11 @@ public class FileTreeComparator {
    * removed between the parent and child commits, so that we can run the rename detector.
    */
   public List<DiffFile> compute(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
-    List<DiffFile> modifiedFiles = find(parent, child, filePaths);
-    if (modifiedFiles != null) {
-      return modifiedFiles;
+    if (filePaths.size() < THRESHOLD_FILTER_FILES) {
+      List<DiffFile> modifiedFiles = find(parent, child, filePaths);
+      if (modifiedFiles != null) {
+        return modifiedFiles;
+      }
     }
 
     Collection<DiffEntry> diffEntries = getDiffEntries(parent, child);
@@ -79,9 +86,13 @@ public class FileTreeComparator {
   }
 
   @CheckForNull
-  private List<DiffFile> find(RevCommit parent, RevCommit child, Collection<String> filePaths) throws IOException {
-    TreeFilter pathFilterGroup = PathFilterGroup.createFromStrings(filePaths);
-    filesAndAnyDiffFilter = AndTreeFilter.create(pathFilterGroup, TreeFilter.ANY_DIFF);
+  private List<DiffFile> find(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
+    if (!filePaths.equals(filterFilePaths)) {
+      // this is expensive to compute
+      TreeFilter pathFilterGroup = PathFilterGroup.createFromStrings(filePaths);
+      filesAndAnyDiffFilter = AndTreeFilter.create(pathFilterGroup, TreeFilter.ANY_DIFF);
+      filterFilePaths = filePaths;
+    }
 
     // With this filter, we'll traverse both trees, only visiting the files that are being blamed and that are different between both trees.
     treeWalk.setFilter(filesAndAnyDiffFilter);

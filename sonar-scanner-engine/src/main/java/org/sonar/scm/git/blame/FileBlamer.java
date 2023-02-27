@@ -72,7 +72,7 @@ public class FileBlamer {
       fileCandidate.setRegionList(new Region(0, 0, rawText.size()));
       blameResult.initialize(fileCandidate.getPath(), rawText.size());
     }
-    fileTreeComparator.initialize(objectReader, commit);
+    fileTreeComparator.initialize(objectReader);
   }
 
   /**
