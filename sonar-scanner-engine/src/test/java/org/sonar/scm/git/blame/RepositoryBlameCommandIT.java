@@ -19,20 +19,26 @@
  */
 package org.sonar.scm.git.blame;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.junit.Test;
+import org.sonar.scm.git.CompositeBlameCommand;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.sonar.scm.git.GitUtils.copyFile;
 import static org.sonar.scm.git.GitUtils.createFile;
+import static org.sonar.scm.git.GitUtils.createRepository;
+import static org.sonar.scm.git.GitUtils.deleteFile;
 import static org.sonar.scm.git.GitUtils.moveFile;
 
 public class RepositoryBlameCommandIT extends AbstractGitIT {
@@ -370,6 +376,98 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
     assertThat(result.getFileBlames()).extracting(FileBlame::getPath).containsOnly("fileA");
     assertAllBlameCommits(result, c1);
   }
+
+
+  @Test
+  public void filterUncommittedFiles_shouldFindAllCommitsFiles() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "content");
+    createFile(baseDir, "fileB", "content");
+    createFile(baseDir, "fileC", "content");
+    commit("fileA", "fileB", "fileC");
+
+    BlameResult result = blame
+      .setFilePaths(Set.of("fileA", "fileB", "fileC"))
+      .call();
+    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileA", "fileB", "fileC");
+  }
+
+
+  @Test
+  public void filterUncommittedFiles_shouldDiscardChangedFiles() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "contentA");
+    createFile(baseDir, "fileB", "contentB");
+    createFile(baseDir, "fileC", "contentC");
+    commit("fileA", "fileB", "fileC");
+    createFile(baseDir, "fileA", "contentA2");
+    createFile(baseDir, "fileB", "contentB2");
+    //Stage one of the file
+    git.add().addFilepattern("fileB").call();
+
+    BlameResult result = blame
+      .setFilePaths(Set.of("fileA", "fileB", "fileC"))
+      .call();
+
+    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileC");
+    //assertThat(logTester.logs()).first().isEqualTo("The following files will not be blamed because they have uncommitted changes: [fileA, fileB]");
+  }
+
+  @Test
+  public void filterUncommittedFiles_shouldDiscardRemovedAndAddedFiles() throws IOException, GitAPIException {
+
+    createFile(baseDir, "fileA", "contentA");
+
+    createFile(baseDir, "fileC", "contentC");
+    commit("fileA", "fileC");
+    createFile(baseDir, "fileB", "contentB");
+    deleteFile(baseDir, "fileA");
+
+    BlameResult result = blame
+      .setFilePaths(Set.of("fileA", "fileB", "fileC"))
+      .call();
+
+    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileC");
+  }
+
+
+  @Test
+  public void filterUncommittedFiles_shouldDiscardRenamedFiles() throws IOException, GitAPIException {
+
+    createFile(baseDir, "fileA", "contentA");
+    createFile(baseDir, "fileB", "contentB");
+    commit("fileA", "fileB");
+    moveFile(baseDir, "fileB", "fileC");
+
+    BlameResult result = blame
+      .setFilePaths(Set.of("fileA", "fileB", "fileC"))
+      .call();
+
+    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileA");
+
+  }
+
+  @Test
+  public void filterUncommittedFiles_whenRepoIsEmpty_shouldReturnEmptyResult() throws IOException, GitAPIException {
+    commit("unexisting");
+    BlameResult result = blame
+      .setFilePaths(Set.of())
+      .call();
+
+    assertThat(result.getFileBlames()).isEmpty();
+  }
+
+  @Test
+  public void filterUncommittedFiles_whenFolderIsMovedAndUncommitted_shouldExcludeFilesFromFolder() throws IOException, GitAPIException {
+
+    createFile(baseDir, "src/fileA", "contentA");
+    commit("src/fileA");
+
+    BlameResult result = blame
+      .setFilePaths(Set.of("src/fileA"))
+      .call();
+
+    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("src/fileA");
+  }
+
 
   private static void assertAllBlameCommits(BlameResult result, String expectedCommit) {
     Collection<String> allBlameCommits = result.getFileBlames().stream()
