@@ -23,8 +23,8 @@ package org.sonar.scm.git.blame;
 /**
  * Region of the result that still needs to be computed.
  * <p>
- * Regions are held in a singly-linked-list by {@link Candidate} using the
- * {@link Candidate#regionList} field. The list is kept in sorted order by
+ * Regions are held in a singly-linked-list by {@link FileCandidate} using the
+ * {@link FileCandidate#regionList} field. The list is kept in sorted order by
  * {@link #resultStart}.
  */
 class Region {
@@ -34,7 +34,7 @@ class Region {
 	/** First position of this region in the result file blame is computing. */
 	int resultStart;
 
-	/** First position in the {@link Candidate} that owns this Region. */
+	/** First position in the {@link FileCandidate} that owns this Region. */
 	int sourceStart;
 
 	/** Length of the region, always &gt;= 1. */

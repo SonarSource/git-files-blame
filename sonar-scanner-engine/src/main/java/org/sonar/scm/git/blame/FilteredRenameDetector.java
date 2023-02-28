@@ -45,15 +45,20 @@ public class FilteredRenameDetector {
    * computes possible RENAME and COPY entries which have a new path that is part of the files being blamed.
    */
   public Collection<DiffEntry> compute(Collection<DiffEntry> changes, Set<String> pathsBeingBlamed) throws IOException {
-    Map<String, DiffEntry> diffsPerNewPath = changes.stream()
-      .filter(d -> d.getChangeType() != ChangeType.DELETE)
-      .collect(Collectors.toMap(DiffEntry::getNewPath, d -> d));
-
     // added files. We'll call RenameDetector separately for each of these files
     List<DiffEntry> addsBeingBlamed = changes.stream()
       .filter(c -> c.getChangeType() == ChangeType.ADD)
       .filter(c -> pathsBeingBlamed.contains(c.getNewPath()))
       .collect(Collectors.toList());
+
+    if (addsBeingBlamed.isEmpty()) {
+      // no point in continuing since RenameDetector won't be called
+      return changes;
+    }
+
+    Map<String, DiffEntry> diffsPerNewPath = changes.stream()
+      .filter(d -> d.getChangeType() != ChangeType.DELETE)
+      .collect(Collectors.toMap(DiffEntry::getNewPath, d -> d));
 
     // deleted files. We keep them aside because we need to fix them after each call to RenameDetector
     List<DeleteDiffEntry> deletes = changes.stream()

@@ -76,8 +76,11 @@ public class FileTreeComparator {
       }
     }
 
+    // to detect renames, we need to collect all modified files in the repo
     Collection<DiffEntry> diffEntries = getDiffEntries(parent, child);
     diffEntries = detectRenames(filePaths, diffEntries);
+
+    // delete entries or any other entry that doesn't have one of the child paths as the newPath is irrelevant
     return diffEntries.stream()
       .filter(entry -> entry.getChangeType() != DiffEntry.ChangeType.DELETE)
       .filter(entry -> filePaths.contains(entry.getNewPath()))
@@ -121,9 +124,10 @@ public class FileTreeComparator {
     return (rawMode & TYPE_MASK) == TYPE_FILE;
   }
 
-  private Collection<DiffEntry> getDiffEntries(RevCommit parent, RevCommit commit) throws IOException {
+  // Gets the full list of added/modified/deleted files between the parent and child commits
+  private Collection<DiffEntry> getDiffEntries(RevCommit parent, RevCommit child) throws IOException {
     treeWalk.setFilter(TreeFilter.ANY_DIFF);
-    treeWalk.reset(parent.getTree(), commit.getTree());
+    treeWalk.reset(parent.getTree(), child.getTree());
     return DiffEntry.scan(treeWalk);
   }
 

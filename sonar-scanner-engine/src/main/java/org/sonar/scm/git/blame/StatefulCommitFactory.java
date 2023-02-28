@@ -65,6 +65,9 @@ public class StatefulCommitFactory {
     return new StatefulCommit(commit, files);
   }
 
+  /**
+   * Checks if the tree node represents a file. Symlinks, for example, will return false.
+   */
   private static boolean isFile(int rawMode) {
     return (rawMode & TYPE_MASK) == TYPE_FILE;
   }
