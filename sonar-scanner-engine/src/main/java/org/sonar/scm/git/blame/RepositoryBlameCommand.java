@@ -19,26 +19,45 @@
  */
 package org.sonar.scm.git.blame;
 
+import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.eclipse.jgit.api.GitCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.diff.DiffAlgorithm;
+import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.HistogramDiff;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.TreeWalk;
+import org.sonar.api.utils.log.Logger;
+import org.sonar.api.utils.log.Loggers;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * A command, similar to Blame, which collects the blame for multiple files in the repository
  */
 public class RepositoryBlameCommand extends GitCommand<BlameResult> {
+  private static final Logger LOG = Loggers.get(RepositoryBlameCommand.class);
   private DiffAlgorithm diffAlgorithm = new HistogramDiff();
   private RawTextComparator textComparator = RawTextComparator.DEFAULT;
   private ObjectId startCommit = null;
@@ -101,7 +120,15 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
       FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(repo);
       FileTreeComparator fileTreeComparator = new FileTreeComparator(filteredRenameDetector);
       FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, diffAlgorithm, textComparator, blobReader, blameResult, multithreading);
-      StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(filePaths);
+
+      Set<String> filteredFilePaths = Optional.ofNullable(filePaths).map(e -> filterUncommittedFiles(e, repo))
+        .orElse(null);
+
+      if (filteredFilePaths != null && filteredFilePaths.isEmpty()) {
+        return blameResult;
+      }
+
+      StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(filteredFilePaths);
       BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, statefulCommitFactory);
       blameGenerator.compute(commit);
     } catch (IOException e) {
@@ -117,4 +144,50 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     }
     return head;
   }
+
+  private static Set<String> filterUncommittedFiles(Set<String> inputFilePaths, Repository repo) {
+
+    try {
+      Set<String> uncommittedFiles;
+      Optional<ObjectId> headCommit = ofNullable(repo.resolve(Constants.HEAD));
+
+      if (headCommit.isEmpty()) {
+        LOG.warn("Could not find HEAD commit");
+        return Collections.emptySet();
+      }
+
+      try (RevWalk revWalk = new RevWalk(repo)) {
+        RevCommit head = revWalk.parseCommit(headCommit.get());
+        uncommittedFiles = collectUncommittedFilesOnCommit(repo, head);
+      }
+      Set<String> filesToRemove = new TreeSet<>(Sets.intersection(inputFilePaths, uncommittedFiles));
+      if (!filesToRemove.isEmpty()) {
+        LOG.debug("The following files will not be blamed because they have uncommitted changes: " + filesToRemove);
+      }
+      return Sets.difference(inputFilePaths, filesToRemove);
+    } catch (IOException e) {
+      throw new IllegalStateException("Failed to find all committed files", e);
+    }
+  }
+
+  private static Set<String> collectUncommittedFilesOnCommit(Repository repo, RevCommit head) throws IOException {
+
+    CanonicalTreeParser oldTreeParser = new CanonicalTreeParser();
+    ObjectReader oldReader = repo.newObjectReader();
+    oldTreeParser.reset(oldReader, head.getTree());
+
+    TreeWalk walk = new TreeWalk(repo);
+    walk.addTree(head.getTree());
+    walk.addTree(new FileTreeIterator(repo));
+    walk.setRecursive(true);
+    List<DiffEntry> diffEntries = DiffEntry.scan(walk);
+    return diffEntries.stream().map(d -> {
+      if (Objects.requireNonNull(d.getChangeType()) == DiffEntry.ChangeType.DELETE) {
+        return d.getOldPath();
+      }
+      // RENAME change type cannot happen since we didn't enable RenameDetector
+      return d.getNewPath();
+    }).collect(Collectors.toSet());
+  }
+
 }

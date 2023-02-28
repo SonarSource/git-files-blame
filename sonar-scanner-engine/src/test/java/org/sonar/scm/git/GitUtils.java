@@ -47,6 +47,11 @@ public class GitUtils {
     Files.write(newFile, content.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
   }
 
+  public static void deleteFile(Path worktree, String relativePath) throws IOException {
+    Path fileToDelete = worktree.resolve(relativePath);
+    Files.delete(fileToDelete);
+  }
+
   public static void copyFile(Path worktree, String origin, String dest) throws IOException {
     Path originPath = worktree.resolve(origin);
     Path destPath = worktree.resolve(dest);
