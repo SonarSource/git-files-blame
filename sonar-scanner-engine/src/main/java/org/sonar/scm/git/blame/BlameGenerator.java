@@ -40,7 +40,6 @@ public class BlameGenerator {
   /**
    * Revision pool used to acquire commits from.
    */
-  // TODO is it worth to use its object reader everywhere or only in certain cases? What exactly is cached?
   private final RevWalk revPool;
 
   public BlameGenerator(Repository repository, FileBlamer fileBlamer, StatefulCommitFactory statefulCommitFactory) {
@@ -126,6 +125,7 @@ public class BlameGenerator {
   private void close() {
     revPool.close();
     queue.clear();
+    fileBlamer.close();
   }
 
   private static class PathAndOriginalPath {

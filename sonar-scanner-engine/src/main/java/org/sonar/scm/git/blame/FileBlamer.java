@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
 import org.eclipse.jgit.diff.DiffAlgorithm;
@@ -90,11 +91,18 @@ public class FileBlamer {
     }
   }
 
+  public StatefulCommit blameParent(RevCommit parentCommit, StatefulCommit child) throws IOException {
+    List<DiffFile> diffFiles = fileTreeComparator.compute(parentCommit, child.getCommit(), child.getAllPaths());
+    StatefulCommit parent = new StatefulCommit(parentCommit, child.getAllFiles().size());
+    blameWithFileDiffs(parent, child, diffFiles);
+    return parent;
+  }
+
   public List<StatefulCommit> blameParents(List<RevCommit> parentCommits, StatefulCommit child) throws IOException {
     List<List<DiffFile>> fileTreeDiffs = new ArrayList<>(parentCommits.size());
     List<StatefulCommit> parentStatefulCommits = new ArrayList<>(parentCommits.size());
 
-    // first try to find matches that are unmodified
+    // first compute differences compared to each parent
     for (RevCommit parentCommit : parentCommits) {
       StatefulCommit parentStatefulCommit = new StatefulCommit(parentCommit, child.getAllFiles().size());
       parentStatefulCommits.add(parentStatefulCommit);
@@ -105,9 +113,9 @@ public class FileBlamer {
 
     // Detect unmodified files (same path)
     for (int i = 0; i < parentCommits.size(); i++) {
-      Set<String> diffFilePaths = fileTreeDiffs.get(i).stream().map(DiffFile::getNewPath).collect(Collectors.toSet());
+      Set<String> diffNewPaths = fileTreeDiffs.get(i).stream().map(DiffFile::getNewPath).collect(Collectors.toSet());
       for (FileCandidate f : child.getAllFiles()) {
-        if (!diffFilePaths.contains(f.getPath())) {
+        if (!diffNewPaths.contains(f.getPath())) {
           // if file wasn't modified, it means it is unmodified. Move it to the parent.
           moveFileToParent(parentStatefulCommits.get(i), f, f.getPath());
         }
@@ -133,29 +141,20 @@ public class FileBlamer {
     return parentStatefulCommits;
   }
 
-  /**
-   * Move a copied, renamed or unmodified file to the parent.
-   * The child and parent files have the same BLOB
-   */
-  private static void moveFileToParent(StatefulCommit parent, FileCandidate childFile, String parentPath) {
-    if (childFile.getRegionList() != null) {
-      FileCandidate parentFile = new FileCandidate(childFile.getOriginalPath(), parentPath, childFile.getBlob(), childFile.getRegionList());
-      parent.addFile(parentFile);
-      childFile.setRegionList(null);
+  public void close() {
+    executor.shutdown();
+    try {
+      executor.awaitTermination(10, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      throw new IllegalStateException(e);
     }
-  }
-
-  public StatefulCommit blameParent(RevCommit parentCommit, StatefulCommit child) throws IOException {
-    List<DiffFile> diffFiles = fileTreeComparator.compute(parentCommit, child.getCommit(), child.getAllPaths());
-    StatefulCommit parent = new StatefulCommit(parentCommit, child.getAllFiles().size());
-    blameWithFileDiffs(parent, child, diffFiles);
-    return parent;
   }
 
   private void blameWithFileDiffs(StatefulCommit parent, StatefulCommit child, List<DiffFile> diffFiles) {
     Set<String> modifiedFilePaths = new HashSet<>();
     List<Future<FileCandidate>> tasks = new ArrayList<>();
 
+    // diffFiles should only include added or modified files
     for (DiffFile file : diffFiles) {
       modifiedFilePaths.add(file.getNewPath());
       if (file.getOldPath() != null) {
@@ -173,6 +172,19 @@ public class FileBlamer {
     }
 
     waitForTasks(parent, tasks);
+  }
+
+  /**
+   * Move an unmodified file, which may have been copied or renamed, to the parent.
+   * The child and parent files have the same BLOB
+   */
+  private static void moveFileToParent(StatefulCommit parent, FileCandidate childFile, String parentPath) {
+    // child's region could be null if it was already moved to another parent
+    if (childFile.getRegionList() != null) {
+      FileCandidate parentFile = new FileCandidate(childFile.getOriginalPath(), parentPath, childFile.getBlob(), childFile.getRegionList());
+      parent.addFile(parentFile);
+      childFile.setRegionList(null);
+    }
   }
 
   private static void waitForTasks(StatefulCommit statefulParent, Collection<Future<FileCandidate>> tasks) {

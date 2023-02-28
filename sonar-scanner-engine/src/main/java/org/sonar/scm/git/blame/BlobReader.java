@@ -32,8 +32,7 @@ import org.eclipse.jgit.lib.ObjectReader;
 public class BlobReader {
   public RawText loadText(ObjectReader objectReader, ObjectId objectId) {
     try {
-      // TODO applySmudgeFilter? See implementation in Candidate#loadText. Apparently only used for the support of
-      // git Large File Storage (LFS)
+      // No support for git Large File Storage (LFS).See implementation in Candidate#loadText
       ObjectLoader open = objectReader.open(objectId, Constants.OBJ_BLOB);
       return new RawText(open.getCachedBytes(Integer.MAX_VALUE));
     } catch (IOException e) {

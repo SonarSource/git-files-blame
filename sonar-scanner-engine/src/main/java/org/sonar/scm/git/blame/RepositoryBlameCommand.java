@@ -69,7 +69,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
    * @param commit a commit Object ID or null to use HEAD
    */
   public RepositoryBlameCommand setStartCommit(@Nullable AnyObjectId commit) {
-    this.startCommit = commit.toObjectId();
+    this.startCommit = commit != null ? commit.toObjectId() : null;
     return this;
   }
 

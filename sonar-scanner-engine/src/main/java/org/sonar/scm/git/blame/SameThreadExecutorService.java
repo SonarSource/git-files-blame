@@ -37,16 +37,15 @@ public class SameThreadExecutorService extends AbstractExecutorService {
   }
 
   /**
-   * Not supported.
-   * @throws IllegalStateException since it's not supported
+   * Not supported. This method is a no-op.
    */
   @Override
   public void shutdown() {
-    throw new IllegalStateException();
   }
 
   /**
    * This executor can't be shutdown.
+   *
    * @return false
    */
   @Override
@@ -56,6 +55,7 @@ public class SameThreadExecutorService extends AbstractExecutorService {
 
   /**
    * This executor can't be terminated.
+   *
    * @return false
    */
   @Override
@@ -65,6 +65,7 @@ public class SameThreadExecutorService extends AbstractExecutorService {
 
   /**
    * This executor can't be terminator and this method will immediately return false
+   *
    * @return false
    */
   @Override
@@ -74,6 +75,7 @@ public class SameThreadExecutorService extends AbstractExecutorService {
 
   /**
    * This executor can't be shutdown. This method is a no op.
+   *
    * @return always empty
    */
   @Override
@@ -83,6 +85,7 @@ public class SameThreadExecutorService extends AbstractExecutorService {
 
   /**
    * Executes the runnable in the calling thread.
+   *
    * @param runnable Runnable to execute
    */
   @Override

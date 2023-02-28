@@ -19,13 +19,11 @@
  */
 package org.sonar.scm.git.blame;
 
-import java.io.IOException;
 import javax.annotation.CheckForNull;
 import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.revwalk.RevWalk;
 
 /**
  * Each candidate retains a {@link #regionList} describing sections of the result file the candidate has taken responsibility
@@ -79,11 +77,6 @@ class FileCandidate {
 
   public void setRegionList(@Nullable Region regionList) {
     this.regionList = regionList;
-  }
-
-  void beginResult(RevWalk rw) throws IOException {
-    // TODO do we need to call this?
-    //rw.parseBody(sourceCommit);
   }
 
   void takeBlame(EditList editList, FileCandidate child) {
@@ -199,10 +192,6 @@ class FileCandidate {
     Region r = regionList;
     regionList = null;
     return r;
-  }
-
-  boolean canMergeRegions(FileCandidate other) {
-    return sourcePath.equals(other.sourcePath);
   }
 
   void mergeRegions(FileCandidate other) {
