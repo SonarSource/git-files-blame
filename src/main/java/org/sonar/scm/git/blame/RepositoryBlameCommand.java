@@ -19,15 +19,14 @@
  */
 package org.sonar.scm.git.blame;
 
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.eclipse.jgit.api.GitCommand;
@@ -48,8 +47,8 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
-import org.sonar.api.utils.log.Logger;
-import org.sonar.api.utils.log.Loggers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static java.util.Optional.ofNullable;
 
@@ -57,7 +56,7 @@ import static java.util.Optional.ofNullable;
  * A command, similar to Blame, which collects the blame for multiple files in the repository
  */
 public class RepositoryBlameCommand extends GitCommand<BlameResult> {
-  private static final Logger LOG = Loggers.get(RepositoryBlameCommand.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RepositoryBlameCommand.class);
   private DiffAlgorithm diffAlgorithm = new HistogramDiff();
   private RawTextComparator textComparator = RawTextComparator.DEFAULT;
   private ObjectId startCommit = null;
@@ -148,7 +147,6 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
   private static Set<String> filterUncommittedFiles(Set<String> inputFilePaths, Repository repo) {
 
     try {
-      Set<String> uncommittedFiles;
       Optional<ObjectId> headCommit = ofNullable(repo.resolve(Constants.HEAD));
 
       if (headCommit.isEmpty()) {
@@ -156,15 +154,25 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
         return Collections.emptySet();
       }
 
+      Set<String> uncommittedFiles;
+
       try (RevWalk revWalk = new RevWalk(repo)) {
         RevCommit head = revWalk.parseCommit(headCommit.get());
         uncommittedFiles = collectUncommittedFilesOnCommit(repo, head);
       }
-      Set<String> filesToRemove = new TreeSet<>(Sets.intersection(inputFilePaths, uncommittedFiles));
-      if (!filesToRemove.isEmpty()) {
-        LOG.debug("The following files will not be blamed because they have uncommitted changes: " + filesToRemove);
+
+      Set<String> filteredFiles = new HashSet<>(inputFilePaths);
+      Set<String> removedFiles = new HashSet<>();
+      uncommittedFiles.forEach(uncommittedFile -> {
+        if (filteredFiles.remove(uncommittedFile)) {
+          removedFiles.add(uncommittedFile);
+        }
+      });
+
+      if (!removedFiles.isEmpty()) {
+        LOG.debug("The following files will not be blamed because they have uncommitted changes: " + removedFiles);
       }
-      return Sets.difference(inputFilePaths, filesToRemove);
+      return filteredFiles;
     } catch (IOException e) {
       throw new IllegalStateException("Failed to find all committed files", e);
     }

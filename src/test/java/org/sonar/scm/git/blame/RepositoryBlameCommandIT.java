@@ -19,25 +19,20 @@
  */
 package org.sonar.scm.git.blame;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.junit.Test;
-import org.sonar.scm.git.CompositeBlameCommand;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.sonar.scm.git.GitUtils.copyFile;
 import static org.sonar.scm.git.GitUtils.createFile;
-import static org.sonar.scm.git.GitUtils.createRepository;
 import static org.sonar.scm.git.GitUtils.deleteFile;
 import static org.sonar.scm.git.GitUtils.moveFile;
 
@@ -377,7 +372,6 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
     assertAllBlameCommits(result, c1);
   }
 
-
   @Test
   public void filterUncommittedFiles_shouldFindAllCommitsFiles() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "content");
@@ -390,7 +384,6 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
       .call();
     assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileA", "fileB", "fileC");
   }
-
 
   @Test
   public void filterUncommittedFiles_shouldDiscardChangedFiles() throws IOException, GitAPIException {
@@ -427,7 +420,6 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
     assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileC");
   }
-
 
   @Test
   public void filterUncommittedFiles_shouldDiscardRenamedFiles() throws IOException, GitAPIException {
@@ -467,7 +459,6 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
     assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("src/fileA");
   }
-
 
   private static void assertAllBlameCommits(BlameResult result, String expectedCommit) {
     Collection<String> allBlameCommits = result.getFileBlames().stream()
