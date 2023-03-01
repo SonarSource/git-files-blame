@@ -20,23 +20,58 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.Repository;
 
 /**
  * Reads the contents of an object from git storage (typically a file)
  */
 public class BlobReader {
-  public RawText loadText(ObjectReader objectReader, ObjectId objectId) {
+  private final Repository repository;
+
+  public BlobReader(Repository repository) {
+    this.repository = repository;
+  }
+
+  /**
+   * Load the contents of the file represented by a {@link FileCandidate}.
+   * If the objectId is not zero, it will be used to access the file contents. Otherwise, the path
+   * is used, assuming that it represents a file in the working directory.
+   */
+  public RawText loadText(ObjectReader objectReader, FileCandidate fc) {
     try {
-      // No support for git Large File Storage (LFS).See implementation in Candidate#loadText
-      ObjectLoader open = objectReader.open(objectId, Constants.OBJ_BLOB);
-      return new RawText(open.getCachedBytes(Integer.MAX_VALUE));
+      if (ObjectId.zeroId().equals(fc.getBlob())) {
+        return loadText(fc.getOriginalPath());
+      } else {
+        return loadText(objectReader, fc.getBlob());
+      }
     } catch (IOException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  private static RawText loadText(ObjectReader objectReader, ObjectId objectId) throws IOException {
+    // No support for git Large File Storage (LFS). See implementation in Candidate#loadText
+    ObjectLoader open = objectReader.open(objectId, Constants.OBJ_BLOB);
+    return new RawText(open.getCachedBytes(Integer.MAX_VALUE));
+  }
+
+  private RawText loadText(String path) throws IOException {
+    return new RawText(getBytes(path));
+  }
+
+  private byte[] getBytes(String path) throws IOException {
+    Path filePath = repository.getWorkTree().toPath().resolve(path);
+    if (Files.isSymbolicLink(filePath)) {
+      filePath = Files.readSymbolicLink(filePath);
+    }
+
+    return Files.readAllBytes(filePath);
   }
 }

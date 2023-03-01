@@ -29,31 +29,29 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
 import org.eclipse.jgit.revwalk.RevCommit;
 
 /**
- * Holds a commit and all the files amd their regions left to blame
+ * Represents a node we are traversing in the graph, and holds all the files amd their regions left to blame
  */
-public class StatefulCommit {
-  public static final Comparator<StatefulCommit> TIME_COMPARATOR = Comparator
-    .comparingInt(StatefulCommit::getTime)
-    .thenComparing(StatefulCommit::getCommit).reversed();
+public abstract class GraphNode {
+  public static final Comparator<GraphNode> TIME_COMPARATOR = Comparator
+    .comparing(GraphNode::getTime)
+    .thenComparing(GraphNode::getCommit, Comparator.nullsFirst(Comparator.naturalOrder())).reversed();
 
-  private final RevCommit sourceCommit;
   // There can be multiple FileCandidate per path (in this commit) because there can be multiple original paths
   // being blamed that end up matching the same file in this commit.
   private final Map<String, List<FileCandidate>> filesByPath;
   // For performance, we keep the full list instead of collecting all files from filesByPath
   private final List<FileCandidate> allFiles;
 
-  StatefulCommit(RevCommit commit, int expectedNumFiles) {
-    this.sourceCommit = commit;
+  GraphNode(int expectedNumFiles) {
     this.filesByPath = new HashMap<>(expectedNumFiles);
     this.allFiles = new ArrayList<>(expectedNumFiles);
   }
 
-  StatefulCommit(RevCommit commit, List<FileCandidate> files) {
-    this.sourceCommit = commit;
+  GraphNode(List<FileCandidate> files) {
     this.filesByPath = files.stream().collect(Collectors.groupingBy(FileCandidate::getPath));
     this.allFiles = files;
   }
@@ -78,35 +76,31 @@ public class StatefulCommit {
     allFiles.add(fileCandidate);
   }
 
-  RevCommit getCommit() {
-    return sourceCommit;
-  }
+  /**
+   * The commit is null when this object represents the working directory.
+   */
+  @CheckForNull
+  public abstract RevCommit getCommit();
 
-  int getParentCount() {
-    return sourceCommit.getParentCount();
-  }
+  public abstract int getParentCount();
 
-  RevCommit getParentCommit(int number) {
-    return sourceCommit.getParent(number);
-  }
+  public abstract RevCommit getParentCommit(int i);
 
-  int getTime() {
-    return sourceCommit.getCommitTime();
-  }
+  public abstract int getTime();
 
   @Override
   public String toString() {
     StringBuilder r = new StringBuilder();
     r.append("Commit[");
-    if (sourceCommit != null) {
-      r.append(" @ ").append(sourceCommit.abbreviate(6).name());
+    if (getCommit() != null) {
+      r.append(" @ ").append(getCommit().abbreviate(6).name());
     }
     r.append("]");
     return r.toString();
   }
 
   /**
-   * Two {@link StatefulCommit} equal if they represent the same commit.
+   * Two {@link CommitGraphNode} equal if they represent the same commit.
    * Should be consistent with {@link #hashCode} and with {@link #TIME_COMPARATOR}.
    */
   @Override
@@ -117,12 +111,12 @@ public class StatefulCommit {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    StatefulCommit that = (StatefulCommit) o;
-    return Objects.equals(sourceCommit, that.sourceCommit);
+    CommitGraphNode that = (CommitGraphNode) o;
+    return Objects.equals(getCommit(), that.getCommit()) && Objects.equals(getTime(), that.getTime());
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(sourceCommit);
+    return Objects.hash(getCommit(), getTime());
   }
 }

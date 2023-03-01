@@ -31,9 +31,10 @@ import org.junit.Assume;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.sonar.scm.git.GitUtils.createFile;
 
-public class StatefulCommitFactoryIT extends AbstractGitIT {
+public class GraphNodeFactoryIT extends AbstractGitIT {
 
   @Test
   public void create_ignores_symlinks() throws IOException, GitAPIException {
@@ -45,11 +46,25 @@ public class StatefulCommitFactoryIT extends AbstractGitIT {
     Files.createSymbolicLink(baseDir.resolve(symlinkName), baseDir.resolve(fileName));
     commit(fileName, symlinkName);
 
-    StatefulCommitFactory underTest = new StatefulCommitFactory(null);
+    GraphNodeFactory underTest = new GraphNodeFactory(git.getRepository(), null);
     TreeWalk treeWalk = new TreeWalk(git.getRepository().newObjectReader());
-    StatefulCommit commit = underTest.create(treeWalk, getHead());
+    CommitGraphNode commit = underTest.createForCommit(treeWalk, getHead());
 
     assertThat(commit.getAllPaths()).containsOnly(fileName);
+  }
+
+  @Test
+  public void create_for_working_directory() throws IOException {
+    createFile(baseDir, "fileA", "line1");
+    createFile(baseDir, "fileB", "line2");
+
+    GraphNodeFactory underTest = new GraphNodeFactory(git.getRepository(), null);
+    TreeWalk treeWalk = new TreeWalk(git.getRepository().newObjectReader());
+    RevCommit parent = mock(RevCommit.class);
+    GraphNode commit = underTest.createForWorkingDir(treeWalk, parent);
+
+    assertThat(commit.getAllPaths()).containsOnly("fileA", "fileB");
+    assertThat(commit.getParentCommit(0)).isEqualTo(parent);
   }
 
   private RevCommit getHead() throws IOException {

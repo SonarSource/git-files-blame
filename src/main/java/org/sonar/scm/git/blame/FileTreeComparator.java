@@ -30,7 +30,9 @@ import javax.annotation.Nullable;
 import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
@@ -48,13 +50,15 @@ public class FileTreeComparator {
   private static final int THRESHOLD_FILTER_FILES = 100;
 
   private final MutableObjectId idBuf = new MutableObjectId();
+  private final Repository repository;
   private final FilteredRenameDetector filteredRenameDetector;
 
   private TreeWalk treeWalk;
   private TreeFilter filesAndAnyDiffFilter = null;
   private Set<String> filterFilePaths = null;
 
-  public FileTreeComparator(FilteredRenameDetector filteredRenameDetector) {
+  public FileTreeComparator(Repository repository, FilteredRenameDetector filteredRenameDetector) {
+    this.repository = repository;
     this.filteredRenameDetector = filteredRenameDetector;
   }
 
@@ -64,15 +68,38 @@ public class FileTreeComparator {
   }
 
   /**
+   * Compare the working tree with a commit.
+   * Returns all files, since we need to know the objectId of the unmodified files.
+   */
+  private List<DiffFile> computeForWorkingDir(RevCommit commit, Set<String> filePaths) throws IOException {
+    List<DiffFile> matchedFiles = new ArrayList<>();
+    treeWalk.reset();
+    treeWalk.addTree(commit.getTree());
+    treeWalk.addTree(new FileTreeIterator(repository));
+    treeWalk.setFilter(TreeFilter.ALL);
+
+    while (treeWalk.next()) {
+      if (filePaths.contains(treeWalk.getPathString())) {
+        treeWalk.getObjectId(idBuf, 0);
+        matchedFiles.add(new DiffFile(treeWalk.getPathString(), treeWalk.getPathString(), idBuf.toObjectId()));
+      }
+    }
+    return matchedFiles;
+  }
+
+  /**
    * The strategy is to first try to find the files to blame in the parent commit, with the same paths.
    * If any file can't be found (meaning that it was added by the child commit), we need to compute all the files added and
    * removed between the parent and child commits, so that we can run the rename detector.
    */
-  public List<DiffFile> findMovedFiles(RevCommit parent, RevCommit child, Set<String> filePathsToInclude) throws IOException {
+  public List<DiffFile> findMovedFiles(RevCommit parent, @Nullable RevCommit child, Set<String> filePathsToInclude) throws IOException {
+    if (child == null) {
+      return computeForWorkingDir(parent, filePathsToInclude);
+    }
     if (filePathsToInclude.size() < THRESHOLD_FILTER_FILES) {
-      List<DiffFile> movedFiles = findMovedFilesForSmallSet(parent, child, filePathsToInclude);
-      if (movedFiles != null) {
-        return movedFiles;
+      List<DiffFile> modifiedFiles = findMovedFilesForSmallSet(parent, child, filePathsToInclude);
+      if (modifiedFiles != null) {
+        return modifiedFiles;
       }
     }
 

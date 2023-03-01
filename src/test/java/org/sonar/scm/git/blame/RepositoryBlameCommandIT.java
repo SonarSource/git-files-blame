@@ -19,18 +19,14 @@
  */
 package org.sonar.scm.git.blame;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.diff.RawTextComparator;
 import org.junit.Test;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
@@ -42,6 +38,83 @@ import static org.sonar.scm.git.GitUtils.deleteFile;
 import static org.sonar.scm.git.GitUtils.moveFile;
 
 public class RepositoryBlameCommandIT extends AbstractGitIT {
+  @Test
+  public void blame_whenUncommittedFiles_thenThereIsNoBlame() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1");
+    String c1 = commit("fileA");
+
+    createFile(baseDir, "fileB", "line2");
+
+    BlameResult result = blame.setFilePaths(Set.of("fileB")).call();
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileB", new String[] {null}));
+  }
+
+  @Test
+  public void blame_whenUncommittedDeletedFiles_thenThereIsNoBlame() throws GitAPIException, IOException {
+    createFile(baseDir, "fileA", "line1");
+    String c1 = commit("fileA");
+
+    deleteFile(baseDir, "fileA");
+
+    BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .isEmpty();
+  }
+
+  @Test
+  public void blame_whenUncommittedRenamedFiles_thenThereIsNoBlame() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1");
+    String c1 = commit("fileA");
+
+    deleteFile(baseDir, "fileA");
+    createFile(baseDir, "fileB", "line1");
+
+    BlameResult result = blame.setFilePaths(Set.of("fileA", "fileB")).call();
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileB", new String[] {null}));
+  }
+
+  @Test
+  public void blame_whenUncommittedLines_thenLinesHaveNullBlame() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1", "line3");
+    String c1 = commit("fileA");
+
+    createFile(baseDir, "fileA", "line1", "line2", "line3");
+
+    BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileA", new String[] {c1, null, c1}));
+  }
+
+  @Test
+  public void blame_whenUncommittedChangesIgnoredByTextComparator_thenHasNoEffectOnBlame() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1", "line2");
+    String c1 = commit("fileA");
+
+    // had whitespace, which our diff formatter ignores
+    createFile(baseDir, "fileA", "line1", "line2 ");
+
+    BlameResult result = blame.setTextComparator(RawTextComparator.WS_IGNORE_ALL).setFilePaths(Set.of("fileA")).call();
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileA", new String[] {c1, c1}));
+  }
+
+  @Test
+  public void blame_whenFileRenamedAndFileFilterUsed_thenDetectRename() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1");
+    createFile(baseDir, "fileB", "line2");
+    String c1 = commit("fileA", "fileB");
+
+    createFile(baseDir, "fileC", "line2");
+    rm("fileB");
+    String c2 = commit("fileC");
+
+    BlameResult result = blame.setFilePaths(Set.of("fileC")).call();
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileC", new String[] {c1}));
+  }
+
   /**
    * When a file in a merge content has files in multiple parents, we should prefer to match it with a parent where the matching file
    * has the same name, if there's any. That should be the case even when it's not the first parent.
@@ -56,7 +129,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void prefer_parent_with_same_fileName_over_parent_with_only_same_file_content() throws GitAPIException, IOException {
+  public void blame_whenFileMatchesTwoParents_thenPreferParentWithSameFilenameOverParentWithSameFileContent() throws GitAPIException, IOException {
     String c1 = commit();
 
     createFile(baseDir, "fileA", "line1", "line2");
@@ -72,8 +145,8 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
     // prefer to pick c2 (same content and same file name) over c3 (same content but different file name)
     assertThat(result.getFileBlames())
-      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommitHashes()).collect(Collectors.toList()))
-      .containsOnly(tuple("fileA", List.of(c2, c2)));
+      .extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileA", new String[] {c2, c2}));
   }
 
   /**
@@ -91,7 +164,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * In this test, all regions should be moved to c4. Line1 should not be moved to c3.
    */
   @Test
-  public void follow_parent_matching_files() throws IOException, GitAPIException {
+  public void blame_whenParentHasFileWithSameContent_thenFollowThatParent() throws IOException, GitAPIException {
     String c1 = commit();
 
     createFile(baseDir, "fileA", "line1", "line3");
@@ -112,8 +185,8 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
     BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
 
     assertThat(result.getFileBlames())
-      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommitHashes()).collect(Collectors.toList()))
-      .containsOnly(tuple("fileA", List.of(c3, c3)));
+      .extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileA", new String[] {c3, c3}));
   }
 
   /**
@@ -131,7 +204,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * In this test, all regions should be moved to c4. Line1 should not be moved to c3.
    */
   @Test
-  public void follow_parent_matching_files_with_rename() throws IOException, GitAPIException {
+  public void blame_whenParentHasHasRenamedFileWithSameContent_thenFollowThatParent() throws IOException, GitAPIException {
     String c1 = commit();
 
     createFile(baseDir, "fileA", "line1", "line3");
@@ -153,34 +226,18 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
     BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
 
     assertThat(result.getFileBlames())
-      .extracting(FileBlame::getPath, b -> Arrays.stream(b.getCommitHashes()).collect(Collectors.toList()))
-      .containsOnly(tuple("fileA", List.of(c3, c3)));
+      .extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileA", new String[] {c3, c3}));
   }
 
   @Test
-  public void filters_files_to_blame() throws IOException, GitAPIException {
+  public void blame_whenFilterUsed_thenOnlyBlameFilesInFilter() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
     createFile(baseDir, "fileB", "line1");
     createFile(baseDir, "fileC", "line1");
     String c1 = commit("fileA", "fileB", "fileC");
     BlameResult result = blame.setFilePaths(Set.of("fileA", "fileB")).call();
     assertThat(result.getFileBlames()).extracting(FileBlame::getPath).containsOnly("fileA", "fileB");
-  }
-
-  @Test
-  public void detects_rename_with_file_filter() throws IOException, GitAPIException {
-    createFile(baseDir, "fileA", "line1");
-    createFile(baseDir, "fileB", "line2");
-    String c1 = commit("fileA", "fileB");
-
-    createFile(baseDir, "fileC", "line2");
-    rm("fileB");
-    String c2 = commit("fileC");
-
-    BlameResult result = blame.setFilePaths(Set.of("fileC")).call();
-    assertThat(result.getFileBlames()).extracting(FileBlame::getPath,
-        b -> Arrays.stream(b.getCommitHashes()).collect(Collectors.toList()))
-      .containsOnly(tuple("fileC", List.of(c1)));
   }
 
   /**
@@ -200,7 +257,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void consumes_queue_in_reverse_commit_time_order() throws IOException, GitAPIException {
+  public void blame_whenThereAreMultipleNodesInQueue_thenPickInReverseCommitTimeOrder() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
     String c1 = commit("fileA");
 
@@ -235,7 +292,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * If there are no more parents, blame the commit for all remaining regions
    */
   @Test
-  public void blames_initial_commit() throws GitAPIException, IOException {
+  public void blame_whenInitialCommitCreatedChanges_thenBlameInitialCommit() throws GitAPIException, IOException {
     createFile(baseDir, "fileA", "line1");
     String c1 = commit("fileA");
     BlameResult result = blame.call();
@@ -252,7 +309,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void detects_rename_and_copy() throws IOException, GitAPIException {
+  public void blame_whenThereIsRenameAndCopy_thenBlameOriginalFile() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4", "line5", "line6", "line7");
     String c1 = commit("fileA");
 
@@ -280,7 +337,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void maps_original_path_to_multiple_paths_with_rename_in_merge_commit() throws IOException, GitAPIException {
+  public void blame_whenFileBlameEndsInMultiplePathsWithARename_thenFinalPathMapsToMultiplePaths() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2");
     createFile(baseDir, "fileB", "line3", "line4");
     String c1 = commitMsg("Create fileA and fileB", ".");
@@ -320,7 +377,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void maps_original_path_to_multiple_paths() throws IOException, GitAPIException {
+  public void blame_whenFileBlameEndsInMultipleFiles_thenFinalPathMapsToMultiplePaths() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2");
     createFile(baseDir, "fileB", "line3", "line4");
     String c1 = commit(".");
@@ -359,7 +416,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void merges_regions_from_two_commits_to_common_parent() throws GitAPIException, IOException {
+  public void blame_whenRegionsFromTwoCommitsEndInCommonParent_thenRegionsShouldBeMerged() throws GitAPIException, IOException {
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
     String c1 = commit("fileA");
 
@@ -379,94 +436,6 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
     assertThat(result.getFileBlames()).extracting(FileBlame::getPath).containsOnly("fileA");
     assertAllBlameCommits(result, c1);
-  }
-
-  @Test
-  public void filterUncommittedFiles_shouldFindAllCommitsFiles() throws IOException, GitAPIException {
-    createFile(baseDir, "fileA", "content");
-    createFile(baseDir, "fileB", "content");
-    createFile(baseDir, "fileC", "content");
-    commit("fileA", "fileB", "fileC");
-
-    BlameResult result = blame
-      .setFilePaths(Set.of("fileA", "fileB", "fileC"))
-      .call();
-    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileA", "fileB", "fileC");
-  }
-
-  @Test
-  public void filterUncommittedFiles_shouldDiscardChangedFiles() throws IOException, GitAPIException {
-    createFile(baseDir, "fileA", "contentA");
-    createFile(baseDir, "fileB", "contentB");
-    createFile(baseDir, "fileC", "contentC");
-    commit("fileA", "fileB", "fileC");
-    createFile(baseDir, "fileA", "contentA2");
-    createFile(baseDir, "fileB", "contentB2");
-    //Stage one of the file
-    git.add().addFilepattern("fileB").call();
-
-    BlameResult result = blame
-      .setFilePaths(Set.of("fileA", "fileB", "fileC"))
-      .call();
-
-    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileC");
-    //assertThat(logTester.logs()).first().isEqualTo("The following files will not be blamed because they have uncommitted changes: [fileA, fileB]");
-  }
-
-  @Test
-  public void filterUncommittedFiles_shouldDiscardRemovedAndAddedFiles() throws IOException, GitAPIException {
-
-    createFile(baseDir, "fileA", "contentA");
-
-    createFile(baseDir, "fileC", "contentC");
-    commit("fileA", "fileC");
-    createFile(baseDir, "fileB", "contentB");
-    deleteFile(baseDir, "fileA");
-
-    BlameResult result = blame
-      .setFilePaths(Set.of("fileA", "fileB", "fileC"))
-      .call();
-
-    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileC");
-  }
-
-  @Test
-  public void filterUncommittedFiles_shouldDiscardRenamedFiles() throws IOException, GitAPIException {
-
-    createFile(baseDir, "fileA", "contentA");
-    createFile(baseDir, "fileB", "contentB");
-    commit("fileA", "fileB");
-    moveFile(baseDir, "fileB", "fileC");
-
-    BlameResult result = blame
-      .setFilePaths(Set.of("fileA", "fileB", "fileC"))
-      .call();
-
-    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("fileA");
-
-  }
-
-  @Test
-  public void filterUncommittedFiles_whenRepoIsEmpty_shouldReturnEmptyResult() throws IOException, GitAPIException {
-    commit("unexisting");
-    BlameResult result = blame
-      .setFilePaths(Set.of())
-      .call();
-
-    assertThat(result.getFileBlames()).isEmpty();
-  }
-
-  @Test
-  public void filterUncommittedFiles_whenFolderIsMovedAndUncommitted_shouldExcludeFilesFromFolder() throws IOException, GitAPIException {
-
-    createFile(baseDir, "src/fileA", "contentA");
-    commit("src/fileA");
-
-    BlameResult result = blame
-      .setFilePaths(Set.of("src/fileA"))
-      .call();
-
-    assertThat(result.getFileBlameByPath().keySet()).containsExactlyInAnyOrder("src/fileA");
   }
 
   private static void assertAllBlameCommits(BlameResult result, String expectedCommit) {
