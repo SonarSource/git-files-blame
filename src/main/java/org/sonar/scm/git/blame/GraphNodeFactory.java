@@ -22,19 +22,25 @@ package org.sonar.scm.git.blame;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.eclipse.jgit.lib.MutableObjectId;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 
 import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
 import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
 
-public class StatefulCommitFactory {
+public class GraphNodeFactory {
+  private final Repository repository;
   private final Set<String> filePathsToBlame;
 
-  public StatefulCommitFactory(@Nullable Set<String> filePathsToBlame) {
+  public GraphNodeFactory(Repository repository, @Nullable Set<String> filePathsToBlame) {
+    this.repository = repository;
     this.filePathsToBlame = filePathsToBlame;
   }
 
@@ -43,7 +49,7 @@ public class StatefulCommitFactory {
    *
    * @return a {link StatefulCommit} for the given commit and the files found.
    */
-  public StatefulCommit create(TreeWalk treeWalk, RevCommit commit) throws IOException {
+  public CommitGraphNode createForCommit(TreeWalk treeWalk, RevCommit commit) throws IOException {
     MutableObjectId idBuf = new MutableObjectId();
     List<FileCandidate> files = new ArrayList<>();
 
@@ -58,8 +64,30 @@ public class StatefulCommitFactory {
 
       treeWalk.getObjectId(idBuf, 0);
       files.add(new FileCandidate(treeWalk.getPathString(), treeWalk.getPathString(), idBuf.toObjectId()));
+
     }
-    return new StatefulCommit(commit, files);
+    return new CommitGraphNode(commit, files);
+  }
+
+  public GraphNode createForWorkingDir(TreeWalk treeWalk, RevCommit parentCommit) throws IOException {
+    Objects.requireNonNull(parentCommit);
+    List<FileCandidate> files = new ArrayList<>();
+
+    treeWalk.setRecursive(true);
+    treeWalk.reset();
+    treeWalk.addTree(new FileTreeIterator(repository));
+
+    while (treeWalk.next()) {
+      if (filePathsToBlame != null && !filePathsToBlame.contains(treeWalk.getPathString())) {
+        continue;
+      }
+      if (!isFile(treeWalk.getRawMode(0))) {
+        continue;
+      }
+      files.add(new FileCandidate(treeWalk.getPathString(), treeWalk.getPathString(), ObjectId.zeroId()));
+
+    }
+    return new WorkDirGraphNode(parentCommit, files);
   }
 
   /**

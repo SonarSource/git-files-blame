@@ -31,14 +31,24 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.sonar.scm.git.blame.StatefulCommit.TIME_COMPARATOR;
+import static org.sonar.scm.git.blame.CommitGraphNode.TIME_COMPARATOR;
 
-public class StatefulCommitTest {
+public class CommitGraphNodeTest {
+
+  @Test
+  public void comparator_whenFakeCommit_thenIsLess() {
+    WorkDirGraphNode fakeCommit = new WorkDirGraphNode(null, List.of());
+    CommitGraphNode commit = new CommitGraphNode(getRevCommit(2000), 1);
+
+    int compare = TIME_COMPARATOR.compare(fakeCommit, commit);
+
+    assertThat(compare).isNegative();
+  }
 
   @Test
   public void comparator_whenTwoSimiliarCommits_thenOrderThemByTime() {
-    StatefulCommit earlyCommit = new StatefulCommit(getRevCommit(1000), 1);
-    StatefulCommit laterCommit = new StatefulCommit(getRevCommit(2000), 1);
+    CommitGraphNode earlyCommit = new CommitGraphNode(getRevCommit(1000), 1);
+    CommitGraphNode laterCommit = new CommitGraphNode(getRevCommit(2000), 1);
 
     int compare = TIME_COMPARATOR.compare(earlyCommit, laterCommit);
 
@@ -48,8 +58,8 @@ public class StatefulCommitTest {
   @Test
   public void comparator_whenCommitsAreTheSame_thenOrderIsAlsoEqual() {
     RevCommit revCommit = getRevCommit(1000);
-    StatefulCommit commitA = new StatefulCommit(revCommit, 1);
-    StatefulCommit commitB = new StatefulCommit(revCommit, 1);
+    CommitGraphNode commitA = new CommitGraphNode(revCommit, 1);
+    CommitGraphNode commitB = new CommitGraphNode(revCommit, 1);
 
     int compare = TIME_COMPARATOR.compare(commitA, commitB);
 
@@ -58,19 +68,19 @@ public class StatefulCommitTest {
 
   @Test
   public void comparator_whenCommitsAreFromTheSameTime_thenOrderIsDependentOnUnderylingRevCommit() {
-    StatefulCommit commitA = new StatefulCommit(getRevCommit(1000), 1);
+    CommitGraphNode commitA = new CommitGraphNode(getRevCommit(1000), 1);
 
     RevCommit revCommit = getRevCommit(1000);
     when(revCommit.compareTo(any(AnyObjectId.class))).thenReturn(1);
 
-    int compare = TIME_COMPARATOR.compare(commitA, new StatefulCommit(revCommit, 1));
+    int compare = TIME_COMPARATOR.compare(commitA, new CommitGraphNode(revCommit, 1));
 
     assertThat(compare).isPositive();
   }
 
   @Test
   public void getFilesByPath_whenKeyDoesntExist_thenReturnsEmptyCollection() {
-    StatefulCommit underTest = new StatefulCommit(getRevCommit(1000), 1);
+    CommitGraphNode underTest = new CommitGraphNode(getRevCommit(1000), 1);
 
     Collection<FileCandidate> emptyCollection = underTest.getFilesByPath("path");
 
@@ -80,7 +90,7 @@ public class StatefulCommitTest {
   @Test
   public void getFilesByPath_whenKeyDoesExist_thenReturnsNotEmptyCollection() {
     List<FileCandidate> fileCandidateList = List.of(fileCandidate("path"));
-    StatefulCommit underTest = new StatefulCommit(getRevCommit(1000), fileCandidateList);
+    CommitGraphNode underTest = new CommitGraphNode(getRevCommit(1000), fileCandidateList);
 
     Collection<FileCandidate> oneElementCollection = underTest.getFilesByPath("path");
 
@@ -89,7 +99,7 @@ public class StatefulCommitTest {
 
   @Test
   public void addFile_whenFileAdded_thenItUpdatesBothCollections() {
-    StatefulCommit underTest = new StatefulCommit(getRevCommit(1000), 1);
+    CommitGraphNode underTest = new CommitGraphNode(getRevCommit(1000), 1);
 
     underTest.addFile(fileCandidate("path"));
 
@@ -104,7 +114,7 @@ public class StatefulCommitTest {
     when(shortId.name()).thenReturn("abcdef");
     when(revCommit.abbreviate(anyInt())).thenReturn(shortId);
 
-    StatefulCommit underTest = new StatefulCommit(revCommit, 1);
+    CommitGraphNode underTest = new CommitGraphNode(revCommit, 1);
 
     assertThat(underTest.toString()).contains("abcdef");
   }
@@ -115,10 +125,7 @@ public class StatefulCommitTest {
 
   private RevCommit getRevCommit(int time) {
     RevCommit mock = mock(RevCommit.class);
-
     when(mock.getCommitTime()).thenReturn(time);
-
     return mock;
   }
-
 }
