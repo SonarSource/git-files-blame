@@ -20,6 +20,7 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,11 @@ import java.util.Objects;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import org.eclipse.jgit.api.errors.NoHeadException;
+import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -36,12 +42,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class BlameGenerator {
-
   private static final Logger LOG = LoggerFactory.getLogger(BlameGenerator.class);
 
-  private final TreeSet<StatefulCommit> queue = new TreeSet<>(StatefulCommit.TIME_COMPARATOR);
+  private final TreeSet<GraphNode> queue = new TreeSet<>(GraphNode.TIME_COMPARATOR);
+  private final Repository repository;
   private final FileBlamer fileBlamer;
-  private final StatefulCommitFactory statefulCommitFactory;
+  private final GraphNodeFactory graphNodeFactory;
 
   /**
    * Revision pool used to acquire commits from.
@@ -49,27 +55,46 @@ public class BlameGenerator {
   private final RevWalk revPool;
   private final BiConsumer<Integer, String> progressCallBack;
 
-  public BlameGenerator(Repository repository, FileBlamer fileBlamer, StatefulCommitFactory statefulCommitFactory, BiConsumer<Integer, String> progressCallBack) {
+  public BlameGenerator(Repository repository, FileBlamer fileBlamer, GraphNodeFactory graphNodeFactory, @Nullable BiConsumer<Integer, String> progressCallBack) {
+    this.repository = repository;
     this.fileBlamer = fileBlamer;
-    this.statefulCommitFactory = statefulCommitFactory;
+    this.graphNodeFactory = graphNodeFactory;
     this.revPool = new RevWalk(repository);
     this.progressCallBack = progressCallBack;
   }
 
-  private void prepareStartCommit(ObjectId startCommit) throws IOException {
-    RevCommit startRevCommit = revPool.parseCommit(startCommit);
+  private void prepareStartCommit(@CheckForNull ObjectId startCommit) throws IOException, NoHeadException {
     TreeWalk treeWalk = new TreeWalk(revPool.getObjectReader());
-    StatefulCommit statefulStartCommit = statefulCommitFactory.create(treeWalk, startRevCommit);
-    fileBlamer.initialize(revPool.getObjectReader(), statefulStartCommit);
-    push(statefulStartCommit);
+    GraphNode graphNode;
+
+    if (startCommit == null) {
+      RevCommit headCommit = revPool.parseCommit(getHead().toObjectId());
+      graphNode = graphNodeFactory.createForWorkingDir(treeWalk, headCommit);
+    } else {
+      RevCommit startRevCommit = revPool.parseCommit(startCommit);
+      graphNode = graphNodeFactory.createForCommit(treeWalk, startRevCommit);
+    }
+
+    if (!graphNode.getAllFiles().isEmpty()) {
+      fileBlamer.initialize(revPool.getObjectReader(), graphNode);
+      push(graphNode);
+    }
   }
 
-  private void push(StatefulCommit newCommit) {
+  private ObjectId getHead() throws IOException, NoHeadException {
+    ObjectId head = repository.resolve(Constants.HEAD);
+    if (head == null) {
+      throw new NoHeadException(MessageFormat.format(JGitText.get().noSuchRefKnown, Constants.HEAD));
+    }
+    return head;
+  }
+
+  private void push(GraphNode newCommit) {
     if (queue.contains(newCommit)) {
       // this can happen when a branch forks creating another branch, and then they merge again.
       // From the merge commit, we'll traverse both branches, and we'll reach the commit before the fork twice
       // The solution is to merge all regions coming from both sides into that node.
-      StatefulCommit existingCommit = queue.ceiling(newCommit);
+      GraphNode existingCommit = queue.ceiling(newCommit);
       Map<PathAndOriginalPath, FileCandidate> newCommitFilesByPaths = newCommit.getAllFiles().stream()
         .collect(Collectors.toMap(PathAndOriginalPath::new, f -> f));
 
@@ -88,14 +113,15 @@ public class BlameGenerator {
     }
   }
 
-  public void generateBlame(ObjectId startCommit) throws IOException {
+  public void generateBlame(ObjectId startCommit) throws IOException, NoHeadException {
     prepareStartCommit(startCommit);
 
     for (int i = 1; !queue.isEmpty(); i++) {
-      StatefulCommit current = queue.pollFirst();
+      GraphNode current = queue.pollFirst();
       LOG.debug("{} Processing commit {}", i, current);
       if (progressCallBack != null) {
-        progressCallBack.accept(i, current.getCommit().getName());
+        String hash = current.getCommit() == null ? ObjectId.zeroId().getName() : current.getCommit().getName();
+        progressCallBack.accept(i, hash);
       }
       if (current.getParentCount() > 0) {
         process(current);
@@ -107,7 +133,7 @@ public class BlameGenerator {
     close();
   }
 
-  private void process(StatefulCommit commitCandidate) throws IOException {
+  private void process(GraphNode commitCandidate) throws IOException {
     List<RevCommit> parentCommits = new ArrayList<>(commitCandidate.getParentCount());
 
     for (int i = 0; i < commitCandidate.getParentCount(); i++) {
@@ -116,14 +142,14 @@ public class BlameGenerator {
       parentCommits.add(parentCommit);
     }
 
-    List<StatefulCommit> parentStatefulCommits;
+    List<GraphNode> parentStatefulCommits;
     if (parentCommits.size() > 1) {
       parentStatefulCommits = fileBlamer.blameParents(parentCommits, commitCandidate);
     } else {
       parentStatefulCommits = List.of(fileBlamer.blameParent(parentCommits.get(0), commitCandidate));
     }
 
-    for (StatefulCommit parentStatefulCommit : parentStatefulCommits) {
+    for (GraphNode parentStatefulCommit : parentStatefulCommits) {
       if (!parentStatefulCommit.getAllFiles().isEmpty()) {
         push(parentStatefulCommit);
       }

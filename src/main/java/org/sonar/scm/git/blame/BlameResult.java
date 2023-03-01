@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import javax.annotation.Nullable;
 
 public class BlameResult {
   private final Map<String, FileBlame> fileBlameByPath = new HashMap<>();
@@ -39,7 +40,8 @@ public class BlameResult {
     fileBlameByPath.put(path, new FileBlame(path, size));
   }
 
-  public void saveBlameDataForFile(String commitHash, Date commitDate, String authorEmail, FileCandidate fileCandidate) {
+  public void saveBlameDataForFile(@Nullable String commitHash, @Nullable Date commitDate, @Nullable String authorEmail, FileCandidate fileCandidate) {
+
     Region currentRegion;
     while ((currentRegion = fileCandidate.getRegionList()) != null) {
       int resLine = currentRegion.resultStart;

@@ -42,6 +42,8 @@ import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.sonar.scm.git.blame.FileTreeComparator.DiffFile;
 
+import static java.util.Objects.requireNonNull;
+
 public class FileBlamer {
   private final ExecutorService executor;
   private final BlobReader fileReader;
@@ -49,6 +51,7 @@ public class FileBlamer {
   private final RawTextComparator textComparator;
   private final BlameResult blameResult;
   private final FileTreeComparator fileTreeComparator;
+
   private ObjectReader objectReader;
 
   public FileBlamer(FileTreeComparator fileTreeComparator, DiffAlgorithm diffAlgorithm, RawTextComparator rawTextComparator, BlobReader fileReader,
@@ -65,11 +68,10 @@ public class FileBlamer {
    * Read all file's contents to get the number of lines in each file. With that, we can initialize regions and
    * also the arrays that will contain the blame results
    */
-  public void initialize(ObjectReader objectReader, StatefulCommit commit) {
+  public void initialize(ObjectReader objectReader, GraphNode commit) {
     this.objectReader = objectReader;
     for (FileCandidate fileCandidate : commit.getAllFiles()) {
-      RawText rawText = fileReader.loadText(objectReader, fileCandidate.getBlob());
-
+      RawText rawText = fileReader.loadText(objectReader, fileCandidate);
       fileCandidate.setRegionList(new Region(0, 0, rawText.size()));
       blameResult.initialize(fileCandidate.getPath(), rawText.size());
     }
@@ -81,10 +83,11 @@ public class FileBlamer {
    *
    * @param source - commit that will be used to associate blame data with remaining regions in files
    */
-  public void saveBlameDataForFilesInCommit(StatefulCommit source) {
-    String commitHash = source.getCommit().getName();
-    String authorEmail = source.getCommit().getAuthorIdent().getEmailAddress();
-    Date commitDate = source.getCommit().getCommitterIdent().getWhen();
+  public void saveBlameDataForFilesInCommit(GraphNode source) {
+    RevCommit commit = source.getCommit();
+    String commitHash = commit != null ? commit.getName() : null;
+    String authorEmail = commit != null ? commit.getAuthorIdent().getEmailAddress() : null;
+    Date commitDate = commit != null ? commit.getCommitterIdent().getWhen() : null;
     for (FileCandidate sourceFile : source.getAllFiles()) {
       if (sourceFile.getRegionList() != null) {
         blameResult.saveBlameDataForFile(commitHash, commitDate, authorEmail, sourceFile);
@@ -92,20 +95,23 @@ public class FileBlamer {
     }
   }
 
-  public StatefulCommit blameParent(RevCommit parentCommit, StatefulCommit child) throws IOException {
+  public GraphNode blameParent(RevCommit parentCommit, GraphNode child) throws IOException {
     List<DiffFile> diffFiles = fileTreeComparator.findMovedFiles(parentCommit, child.getCommit(), child.getAllPaths());
-    StatefulCommit parent = new StatefulCommit(parentCommit, child.getAllFiles().size());
+    GraphNode parent = new CommitGraphNode(parentCommit, child.getAllFiles().size());
     blameWithFileDiffs(parent, child, diffFiles);
     return parent;
   }
 
-  public List<StatefulCommit> blameParents(List<RevCommit> parentCommits, StatefulCommit child) throws IOException {
+  public List<GraphNode> blameParents(List<RevCommit> parentCommits, GraphNode child) throws IOException {
+    // the working directory should always have a single parent
+    requireNonNull(child.getCommit());
+
     List<List<DiffFile>> fileTreeDiffs = new ArrayList<>(parentCommits.size());
-    List<StatefulCommit> parentStatefulCommits = new ArrayList<>(parentCommits.size());
+    List<GraphNode> parentStatefulCommits = new ArrayList<>(parentCommits.size());
 
     // first compute differences compared to each parent
     for (RevCommit parentCommit : parentCommits) {
-      StatefulCommit parentStatefulCommit = new StatefulCommit(parentCommit, child.getAllFiles().size());
+      GraphNode parentStatefulCommit = new CommitGraphNode(parentCommit, child.getAllFiles().size());
       parentStatefulCommits.add(parentStatefulCommit);
 
       // diff files will include added,modified,rename,copy. It will not include unmodified files.
@@ -151,13 +157,13 @@ public class FileBlamer {
     }
   }
 
-  private void blameWithFileDiffs(StatefulCommit parent, StatefulCommit child, List<DiffFile> diffFiles) {
-    Set<String> modifiedFilePaths = new HashSet<>();
+  private void blameWithFileDiffs(GraphNode parent, GraphNode child, List<DiffFile> diffFiles) {
+    Set<String> processedFilePaths = new HashSet<>();
     List<Future<FileCandidate>> tasks = new ArrayList<>();
 
-    // diffFiles should only include added or modified files
+    // compare files in diffFiles
     for (DiffFile file : diffFiles) {
-      modifiedFilePaths.add(file.getNewPath());
+      processedFilePaths.add(file.getNewPath());
       if (file.getOldPath() != null) {
         // added files don't have an old path
         child.getFilesByPath(file.getNewPath())
@@ -167,7 +173,7 @@ public class FileBlamer {
 
     // move unmodified files to the parent
     for (FileCandidate f : child.getAllFiles()) {
-      if (!modifiedFilePaths.contains(f.getPath())) {
+      if (!processedFilePaths.contains(f.getPath())) {
         moveFileToParent(parent, f, f.getPath());
       }
     }
@@ -179,7 +185,7 @@ public class FileBlamer {
    * Move an unmodified file, which may have been copied or renamed, to the parent.
    * The child and parent files have the same BLOB
    */
-  private static void moveFileToParent(StatefulCommit parent, FileCandidate childFile, String parentPath) {
+  private static void moveFileToParent(GraphNode parent, FileCandidate childFile, String parentPath) {
     // child's region could be null if it was already moved to another parent
     if (childFile.getRegionList() != null) {
       FileCandidate parentFile = new FileCandidate(childFile.getOriginalPath(), parentPath, childFile.getBlob(), childFile.getRegionList());
@@ -188,7 +194,7 @@ public class FileBlamer {
     }
   }
 
-  private static void waitForTasks(StatefulCommit statefulParent, Collection<Future<FileCandidate>> tasks) {
+  private static void waitForTasks(GraphNode statefulParent, Collection<Future<FileCandidate>> tasks) {
     try {
       for (Future<FileCandidate> f : tasks) {
         FileCandidate parent = f.get();
@@ -217,9 +223,7 @@ public class FileBlamer {
     // ObjectReader is not thread safe, so we need to clone it
     ObjectReader reader = objectReader.newReader();
 
-    EditList editList = diffAlgorithm.diff(textComparator,
-      fileReader.loadText(reader, parent.getBlob()),
-      fileReader.loadText(reader, source.getBlob()));
+    EditList editList = diffAlgorithm.diff(textComparator, fileReader.loadText(reader, parent), fileReader.loadText(reader, source));
     if (editList.isEmpty()) {
       // Ignoring whitespace (or some other special comparator) can cause non-identical blobs to have an empty edit list
       moveUnmodifiedFileRegionsToParent(parent, source);

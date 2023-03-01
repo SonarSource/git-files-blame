@@ -21,6 +21,7 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.util.Set;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.junit.Test;
@@ -30,47 +31,47 @@ import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class StatefulCommitFactoryTest {
-
+public class GraphNodeFactoryTest {
+  private final Repository repo = mock(Repository.class);
   private final RevCommit revCommit = mock(RevCommit.class);
 
   @Test
   public void create_whenCommitNotIncludedInPathsToBlame_thenReturnNoFiles() throws IOException {
-    StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(Set.of("path"));
+    GraphNodeFactory statefulCommitFactory = new GraphNodeFactory(repo, Set.of("path"));
 
     TreeWalk treeWalk = mock(TreeWalk.class);
     when(treeWalk.next()).thenReturn(true).thenReturn(false);
     when(treeWalk.getPathString()).thenReturn("path2");
 
-    StatefulCommit statefulCommit = statefulCommitFactory.create(treeWalk, revCommit);
+    CommitGraphNode statefulCommit = statefulCommitFactory.createForCommit(treeWalk, revCommit);
 
     assertThat(statefulCommit.getAllPaths()).isEmpty();
   }
 
   @Test
   public void create_whenCommitIncludedInPathsToBlame_thenReturnOneFile() throws IOException {
-    StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(Set.of("path"));
+    GraphNodeFactory statefulCommitFactory = new GraphNodeFactory(repo, Set.of("path"));
 
     TreeWalk treeWalk = mock(TreeWalk.class);
     when(treeWalk.next()).thenReturn(true).thenReturn(false);
     when(treeWalk.getPathString()).thenReturn("path");
     when(treeWalk.getRawMode(0)).thenReturn(TYPE_FILE);
 
-    StatefulCommit statefulCommit = statefulCommitFactory.create(treeWalk, revCommit);
+    CommitGraphNode statefulCommit = statefulCommitFactory.createForCommit(treeWalk, revCommit);
 
     assertThat(statefulCommit.getAllPaths()).hasSize(1);
   }
 
   @Test
   public void create_whenNoFilesToBlame_thenReturnOneFile() throws IOException {
-    StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(null);
+    GraphNodeFactory statefulCommitFactory = new GraphNodeFactory(repo, null);
 
     TreeWalk treeWalk = mock(TreeWalk.class);
     when(treeWalk.next()).thenReturn(true).thenReturn(false);
     when(treeWalk.getPathString()).thenReturn("path");
     when(treeWalk.getRawMode(0)).thenReturn(TYPE_FILE);
 
-    StatefulCommit statefulCommit = statefulCommitFactory.create(treeWalk, revCommit);
+    CommitGraphNode statefulCommit = statefulCommitFactory.createForCommit(treeWalk, revCommit);
 
     assertThat(statefulCommit.getAllPaths()).hasSize(1);
   }

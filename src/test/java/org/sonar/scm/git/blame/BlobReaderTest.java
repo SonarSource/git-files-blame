@@ -19,32 +19,78 @@
  */
 package org.sonar.scm.git.blame;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.Repository;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class BlobReaderTest {
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+  private final ObjectReader objectReader = mock(ObjectReader.class);
 
   @Test
-  public void loadTest_whenObjectExists_thenReturnsNotEmptyObject() throws IOException {
+  public void loadText_whenObjectExists_thenReturnsNotEmptyObject() throws IOException {
     byte[] rawText = {51, 52, 53, 54, 55};
     ObjectId objectId = new ObjectId(1, 2, 3, 4, 5);
-    ObjectReader objectReader = mock(ObjectReader.class);
     ObjectLoader objectLoader = mock(ObjectLoader.class);
 
     when(objectReader.open(objectId, Constants.OBJ_BLOB)).thenReturn(objectLoader);
     when(objectLoader.getCachedBytes(Integer.MAX_VALUE)).thenReturn(rawText);
 
-    byte[] rawContent = new BlobReader().loadText(objectReader, objectId).getRawContent();
+    FileCandidate fc = mock(FileCandidate.class);
+    when(fc.getBlob()).thenReturn(objectId);
+
+    byte[] rawContent = new BlobReader(mock(Repository.class)).loadText(objectReader, fc).getRawContent();
 
     assertThat(rawContent).isEqualTo(new RawText(rawText).getRawContent());
+  }
+
+  @Test
+  public void loadText_whenUsingPath_thenReturnsContentFromFS() throws IOException {
+    File file = temp.newFile();
+    Repository repository = mock(Repository.class);
+    when(repository.getWorkTree()).thenReturn(file.getParentFile());
+    Files.writeString(file.toPath(), "test");
+    FileCandidate fc = mock(FileCandidate.class);
+    when(fc.getBlob()).thenReturn(ObjectId.zeroId());
+    when(fc.getOriginalPath()).thenReturn(file.getName());
+
+    byte[] rawContent = new BlobReader(repository).loadText(objectReader, fc).getRawContent();
+
+    assertThat(new String(rawContent, StandardCharsets.UTF_8)).isEqualTo("test");
+  }
+
+  @Test
+  public void loadText_whenUsingPathToSymbolicLink_thenReturnsContentFromLinkedFile() throws IOException {
+    File file = temp.newFile();
+    Files.writeString(file.toPath(), "test");
+
+    File link = new File(temp.getRoot(), "link");
+    File symbolicLink = Files.createSymbolicLink(link.toPath(), file.toPath()).toFile();
+
+    FileCandidate fc = mock(FileCandidate.class);
+    when(fc.getBlob()).thenReturn(ObjectId.zeroId());
+    when(fc.getOriginalPath()).thenReturn(symbolicLink.getName());
+
+    Repository repository = mock(Repository.class);
+    when(repository.getWorkTree()).thenReturn(temp.getRoot());
+
+    byte[] rawContent = new BlobReader(repository).loadText(objectReader, fc).getRawContent();
+
+    assertThat(new String(rawContent, StandardCharsets.UTF_8)).isEqualTo("test");
   }
 }

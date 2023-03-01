@@ -72,7 +72,7 @@ public class FileBlamerTest {
     FileBlamer fileBlamer = new FileBlamer(null, null, null, null, blameResult, false);
     when(fileCandidate.getRegionList()).thenReturn(new Region(0, 0, 2));
 
-    StatefulCommit statefulCommit = new StatefulCommit(revCommit, 1);
+    CommitGraphNode statefulCommit = new CommitGraphNode(revCommit, 1);
     statefulCommit.addFile(fileCandidate);
 
     fileBlamer.saveBlameDataForFilesInCommit(statefulCommit);
@@ -87,34 +87,17 @@ public class FileBlamerTest {
     ObjectReader objectReader = mock(ObjectReader.class);
     RawText rawText = mock(RawText.class);
 
-    when(fileReader.loadText(any(ObjectReader.class), any(ObjectId.class))).thenReturn(rawText);
+    when(fileReader.loadText(any(ObjectReader.class), any(FileCandidate.class))).thenReturn(rawText);
     when(rawText.size()).thenReturn(2);
     when(fileCandidate.getBlob()).thenReturn(mock(ObjectId.class));
     when(fileCandidate.getPath()).thenReturn("path");
 
-    StatefulCommit statefulCommit = new StatefulCommit(revCommit, 1);
+    CommitGraphNode statefulCommit = new CommitGraphNode(revCommit, 1);
     statefulCommit.addFile(fileCandidate);
 
     fileBlamer.initialize(objectReader, statefulCommit);
 
     verify(blameResult).initialize(anyString(), anyInt());
     verify(fileTreeComparator).initialize(objectReader);
-  }
-
-  /**
-   * TODO
-   */
-  @Test
-  public void blameParents_when() throws IOException {
-    FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, null, null, fileReader, blameResult, false);
-
-    RevCommit firstParent = mock(RevCommit.class);
-    RevCommit secondParent = mock(RevCommit.class);
-    List<RevCommit> revCommits = List.of(firstParent, secondParent);
-
-    StatefulCommit child = new StatefulCommit(revCommit, 1);
-    child.addFile(fileCandidate);
-
-    fileBlamer.blameParents(revCommits, child);
   }
 }
