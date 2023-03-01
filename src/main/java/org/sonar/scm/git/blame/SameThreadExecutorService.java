@@ -22,7 +22,7 @@ package org.sonar.scm.git.blame;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.TimeUnit;
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 
 import static java.util.Collections.emptyList;
 
@@ -69,7 +69,7 @@ public class SameThreadExecutorService extends AbstractExecutorService {
    * @return false
    */
   @Override
-  public boolean awaitTermination(long timeout, @NotNull TimeUnit timeUnit) {
+  public boolean awaitTermination(long timeout, @Nonnull TimeUnit timeUnit) {
     return false;
   }
 
