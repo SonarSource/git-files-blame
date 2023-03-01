@@ -58,7 +58,7 @@ public class FilteredRenameDetectorIT extends AbstractGitIT {
     Collection<DiffEntry> diffEntries = getDiffEntries(c1, c2);
     Collection<DiffEntry> compute = filteredRenameDetector.compute(diffEntries, Set.of("fileB", "fileC"));
     assertThat(compute).extracting(DiffEntry::getChangeType, DiffEntry::getOldPath, DiffEntry::getNewPath)
-      .containsOnly(tuple(DiffEntry.ChangeType.RENAME, "fileA", "fileB"),
+      .containsOnly(tuple(DiffEntry.ChangeType.COPY, "fileA", "fileB"),
         tuple(DiffEntry.ChangeType.RENAME, "fileA", "fileC"));
   }
 
