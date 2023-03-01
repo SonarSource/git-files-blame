@@ -82,7 +82,7 @@ public class FileBlamer {
 
     String commitHash = source.getCommit().getName();
     String authorEmail = source.getCommit().getAuthorIdent().getEmailAddress();
-    Date commitDate = source.getCommit().getAuthorIdent().getWhen();
+    Date commitDate = source.getCommit().getCommitterIdent().getWhen();
     for (FileCandidate sourceFile : source.getAllFiles()) {
       if (sourceFile.getRegionList() != null) {
         blameResult.process(commitHash, commitDate, authorEmail, sourceFile);
