@@ -21,14 +21,14 @@ package org.sonar.scm.git.blame;
 
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 
 public class BlameThreadFactory implements ThreadFactory {
   private static final String NAME_PREFIX = "git-blame-";
   private final AtomicInteger count = new AtomicInteger(0);
 
   @Override
-  public Thread newThread(@NotNull Runnable r) {
+  public Thread newThread(@Nonnull  Runnable r) {
     Thread t = new Thread(r);
     t.setName(NAME_PREFIX + count.getAndIncrement());
     t.setDaemon(true);
