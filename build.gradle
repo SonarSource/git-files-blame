@@ -5,11 +5,16 @@ plugins {
     id "org.sonarqube" version "3.3"
 }
 
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(11)
     }
 }
+
+group = 'org.sonarsource.git.blame'
+version = '1.0-SNAPSHOT'
+
 repositories {
     mavenCentral()
 }

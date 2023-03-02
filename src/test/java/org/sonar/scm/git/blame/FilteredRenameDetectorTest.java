@@ -54,7 +54,7 @@ public class FilteredRenameDetectorTest {
     DiffEntry diffEntry2 = mockedDiffEntry("pathB", DiffEntry.ChangeType.MODIFY);
     DiffEntry diffEntry3 = mockedDiffEntry("pathC", DiffEntry.ChangeType.DELETE);
 
-    Collection<DiffEntry> changes = Set.of(diffEntry1, diffEntry2, diffEntry3);
+    Collection<DiffEntry> changes = List.of(diffEntry1, diffEntry2, diffEntry3);
     List<DiffEntry> expected = List.of(mock(DiffEntry.class));
     when(renameDetector.compute()).thenReturn(expected);
 
