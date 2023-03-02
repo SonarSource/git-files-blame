@@ -24,8 +24,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import org.eclipse.jgit.diff.DiffEntry;
-import org.eclipse.jgit.diff.RenameDetector;
+import org.sonar.scm.git.blame.diff.DiffEntry;
+import org.sonar.scm.git.blame.diff.RenameDetector;
 
 public class FilteredRenameDetector {
   private final RenameDetector renameDetector;
