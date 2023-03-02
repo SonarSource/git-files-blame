@@ -28,7 +28,7 @@ public class BlameThreadFactory implements ThreadFactory {
   private final AtomicInteger count = new AtomicInteger(0);
 
   @Override
-  public Thread newThread(@Nonnull  Runnable r) {
+  public Thread newThread(@Nonnull Runnable r) {
     Thread t = new Thread(r);
     t.setName(NAME_PREFIX + count.getAndIncrement());
     t.setDaemon(true);
