@@ -36,6 +36,7 @@ import org.eclipse.jgit.diff.DiffAlgorithm;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.HistogramDiff;
 import org.eclipse.jgit.diff.RawTextComparator;
+import org.eclipse.jgit.diff.RenameDetector;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
@@ -116,7 +117,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     try {
       ObjectId commit = startCommit != null ? startCommit : getHead();
       BlobReader blobReader = new BlobReader();
-      FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(repo);
+      FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(new RenameDetector(repo));
       FileTreeComparator fileTreeComparator = new FileTreeComparator(filteredRenameDetector);
       FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, diffAlgorithm, textComparator, blobReader, blameResult, multithreading);
 

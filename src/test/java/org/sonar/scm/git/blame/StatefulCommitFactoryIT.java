@@ -21,18 +21,23 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import org.apache.commons.lang.SystemUtils;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.treewalk.TreeWalk;
+import org.junit.Assume;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sonar.scm.git.GitUtils.createFile;
 
 public class StatefulCommitFactoryIT extends AbstractGitIT {
+
   @Test
   public void create_ignores_symlinks() throws IOException, GitAPIException {
+    Assume.assumeFalse(SystemUtils.IS_OS_WINDOWS);
     String fileName = "fileA";
     String symlinkName = "symlink";
 
@@ -41,7 +46,8 @@ public class StatefulCommitFactoryIT extends AbstractGitIT {
     commit(fileName, symlinkName);
 
     StatefulCommitFactory underTest = new StatefulCommitFactory(null);
-    StatefulCommit commit = underTest.create(git.getRepository().newObjectReader(), getHead());
+    TreeWalk treeWalk = new TreeWalk(git.getRepository().newObjectReader());
+    StatefulCommit commit = underTest.create(treeWalk, getHead());
 
     assertThat(commit.getAllPaths()).containsOnly(fileName);
   }

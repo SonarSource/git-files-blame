@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.eclipse.jgit.lib.MutableObjectId;
-import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
 
@@ -44,11 +43,10 @@ public class StatefulCommitFactory {
    *
    * @return a {link StatefulCommit} for the given commit and the files found.
    */
-  public StatefulCommit create(ObjectReader objectReader, RevCommit commit) throws IOException {
+  public StatefulCommit create(TreeWalk treeWalk, RevCommit commit) throws IOException {
     MutableObjectId idBuf = new MutableObjectId();
     List<FileCandidate> files = new ArrayList<>();
 
-    TreeWalk treeWalk = new TreeWalk(objectReader);
     treeWalk.setRecursive(true);
     treeWalk.reset(commit.getTree());
 

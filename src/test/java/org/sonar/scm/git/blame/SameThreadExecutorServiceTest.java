@@ -19,19 +19,19 @@
  */
 package org.sonar.scm.git.blame;
 
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.jetbrains.annotations.NotNull;
+import org.junit.Test;
 
-public class BlameThreadFactory implements ThreadFactory {
-  private static final String NAME_PREFIX = "git-blame-";
-  private final AtomicInteger count = new AtomicInteger(0);
+import static org.assertj.core.api.Assertions.assertThat;
 
-  @Override
-  public Thread newThread(@NotNull Runnable r) {
-    Thread t = new Thread(r);
-    t.setName(NAME_PREFIX + count.getAndIncrement());
-    t.setDaemon(true);
-    return t;
+public class SameThreadExecutorServiceTest {
+
+  @Test
+  public void run_alwaysExecutesInTheSameThread() {
+    long expectedId = Thread.currentThread().getId();
+    long[] threadId = new long[1];
+
+    SameThreadExecutorService.INSTANCE.execute(() -> threadId[0] = Thread.currentThread().getId());
+
+    assertThat(threadId[0]).isEqualTo(expectedId);
   }
 }

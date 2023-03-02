@@ -20,7 +20,6 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -31,13 +30,12 @@ import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffEntry.ChangeType;
 import org.eclipse.jgit.diff.RenameDetector;
 import org.eclipse.jgit.lib.FileMode;
-import org.eclipse.jgit.lib.Repository;
 
 public class FilteredRenameDetector {
   private final RenameDetector renameDetector;
 
-  public FilteredRenameDetector(Repository repository) {
-    this.renameDetector = new RenameDetector(repository);
+  public FilteredRenameDetector(RenameDetector renameDetector) {
+    this.renameDetector = renameDetector;
   }
 
   /**
