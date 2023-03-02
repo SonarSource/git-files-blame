@@ -31,6 +31,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.TreeWalk;
 
 public class BlameGenerator {
   private final TreeSet<StatefulCommit> queue = new TreeSet<>(StatefulCommit.TIME_COMPARATOR);
@@ -50,7 +51,8 @@ public class BlameGenerator {
 
   private void prepareStartCommit(ObjectId startCommit) throws IOException {
     RevCommit startRevCommit = revPool.parseCommit(startCommit);
-    StatefulCommit statefulStartCommit = statefulCommitFactory.create(revPool.getObjectReader(), startRevCommit);
+    TreeWalk treeWalk = new TreeWalk(revPool.getObjectReader());
+    StatefulCommit statefulStartCommit = statefulCommitFactory.create(treeWalk, startRevCommit);
     fileBlamer.initialize(revPool.getObjectReader(), statefulStartCommit);
     push(statefulStartCommit);
   }
