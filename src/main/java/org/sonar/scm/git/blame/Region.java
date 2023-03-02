@@ -28,62 +28,69 @@ package org.sonar.scm.git.blame;
  * {@link #resultStart}.
  */
 class Region {
-	/** Next entry in the region linked list. */
-	Region next;
+  /**
+   * Next entry in the region linked list.
+   */
+  Region next;
 
-	/** First position of this region in the result file blame is computing. */
-	int resultStart;
+  /**
+   * First position of this region in the result file blame is computing.
+   */
+  int resultStart;
 
-	/** First position in the {@link FileCandidate} that owns this Region. */
-	int sourceStart;
+  /**
+   * First position in the {@link FileCandidate} that owns this Region.
+   */
+  int sourceStart;
 
-	/** Length of the region, always &gt;= 1. */
-	int length;
+  /**
+   * Length of the region, always &gt;= 1.
+   */
+  int length;
 
-	Region(int rs, int ss, int len) {
-		resultStart = rs;
-		sourceStart = ss;
-		length = len;
-	}
+  Region(int rs, int ss, int len) {
+    resultStart = rs;
+    sourceStart = ss;
+    length = len;
+  }
 
-	/**
-	 * Split the region, assigning a new source position to the first half.
-	 *
-	 * @param newSource
-	 *            the new source position.
-	 * @param newLen
-	 *            length of the new region.
-	 * @return the first half of the region, at the new source.
-	 */
-	Region splitFirst(int newSource, int newLen) {
-		return new Region(resultStart, newSource, newLen);
-	}
+  /**
+   * Split the region, assigning a new source position to the first half.
+   *
+   * @param newSource the new source position.
+   * @param newLen    length of the new region.
+   * @return the first half of the region, at the new source.
+   */
+  Region splitFirst(int newSource, int newLen) {
+    return new Region(resultStart, newSource, newLen);
+  }
 
-	/**
-	 * Edit this region to remove the first {@code d} elements.
-	 *
-	 * @param d
-	 *            number of elements to remove from the start of this region.
-	 */
-	void slideAndShrink(int d) {
-		resultStart += d;
-		sourceStart += d;
-		length -= d;
-	}
+  /**
+   * Edit this region to remove the first {@code d} elements.
+   *
+   * @param d number of elements to remove from the start of this region.
+   */
+  void slideAndShrink(int d) {
+    resultStart += d;
+    sourceStart += d;
+    length -= d;
+  }
 
-	/** {@inheritDoc} */
-	@Override
-	public String toString() {
-		StringBuilder buf = new StringBuilder();
-		Region r = this;
-		do {
-			if (r != this)
-				buf.append(',');
-			buf.append(r.resultStart);
-			buf.append('-');
-			buf.append(r.resultStart + r.length);
-			r = r.next;
-		} while (r != null);
-		return buf.toString();
-	}
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String toString() {
+    StringBuilder buf = new StringBuilder();
+    Region r = this;
+    do {
+      if (r != this)
+        buf.append(',');
+      buf.append(r.resultStart);
+      buf.append('-');
+      buf.append(r.resultStart + r.length);
+      r = r.next;
+    } while (r != null);
+    return buf.toString();
+  }
 }

@@ -217,7 +217,7 @@ class FileCandidate {
       Region n = a.next;
       t = add(t, this, a);
       t.next = n;
-    } else /* b != null */ {
+    } else if (b != null) {
       Region n = b.next;
       t = add(t, this, b);
       t.next = n;
