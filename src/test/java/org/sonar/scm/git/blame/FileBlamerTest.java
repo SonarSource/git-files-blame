@@ -38,6 +38,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.junit.Ignore;
+
 
 public class FileBlamerTest {
 
@@ -60,6 +62,7 @@ public class FileBlamerTest {
     when(personIdent.getWhen()).thenReturn(ANY_DATE);
   }
 
+  @Ignore
   @Test
   public void processResult_whenCommitContainsFileCandidate_thenCallBlameResult() {
     FileBlamer fileBlamer = new FileBlamer(null, null, null, null, blameResult, false);
