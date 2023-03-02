@@ -20,64 +20,48 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
-import org.eclipse.jgit.diff.DiffEntry;
-import org.eclipse.jgit.diff.RenameDetector;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.sonar.scm.git.blame.diff.DiffEntry;
+import org.sonar.scm.git.blame.diff.RenameDetector;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class FilteredRenameDetectorTest {
+  private final RenameDetector renameDetector = mock(RenameDetector.class);
+  private final FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(renameDetector);
 
   @Test
-  public void compute_whenDeleteAndAddDiffEntry_thenOnlyOneDiffEntryIsReturned() throws IOException {
-    RenameDetector renameDetector = mock(RenameDetector.class);
-    FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(renameDetector);
+  public void compute_whenChangesHaveAddsNotInPaths_thenFilterThem() throws IOException {
+    DiffEntry addDiffEntry1 = mockedDiffEntry("pathA", DiffEntry.ChangeType.ADD);
+    DiffEntry addDiffEntry2 = mockedDiffEntry("pathB", DiffEntry.ChangeType.ADD);
+    Collection<DiffEntry> changes = Set.of(addDiffEntry1, addDiffEntry2);
 
-    DiffEntry deleteDiffEntry = mockedDiffEntry("pathA", DiffEntry.ChangeType.DELETE);
-    DiffEntry addDiffEntry = mockedDiffEntry("pathB", DiffEntry.ChangeType.ADD);
-    Collection<DiffEntry> changes = Set.of(deleteDiffEntry, addDiffEntry);
-    Set<String> paths = Set.of("pathA", "pathB");
-
-    Collection<DiffEntry> possibleRenames = filteredRenameDetector.compute(changes, paths);
-
-    assertThat(possibleRenames).hasSize(1);
+    filteredRenameDetector.compute(changes, Set.of("pathA"));
+    verify(renameDetector).addAll(List.of(addDiffEntry1));
   }
 
   @Test
-  public void compute_whenTwoDiffsTypeModifyEndNoPathsPassed_thenReturnAllDiffs() throws IOException {
-    RenameDetector renameDetector = mock(RenameDetector.class);
-    FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(renameDetector);
+  public void compute_returns_results_of_renameDetector() throws IOException {
+    DiffEntry diffEntry1 = mockedDiffEntry("pathA", DiffEntry.ChangeType.ADD);
+    DiffEntry diffEntry2 = mockedDiffEntry("pathB", DiffEntry.ChangeType.MODIFY);
+    DiffEntry diffEntry3 = mockedDiffEntry("pathC", DiffEntry.ChangeType.DELETE);
 
-    DiffEntry deleteDiffEntry = mockedDiffEntry("pathA", DiffEntry.ChangeType.MODIFY);
-    DiffEntry addDiffEntry = mockedDiffEntry("pathB", DiffEntry.ChangeType.MODIFY);
-    Collection<DiffEntry> changes = Set.of(deleteDiffEntry, addDiffEntry);
+    Collection<DiffEntry> changes = Set.of(diffEntry1, diffEntry2, diffEntry3);
+    List<DiffEntry> expected = List.of(mock(DiffEntry.class));
+    when(renameDetector.compute()).thenReturn(expected);
 
-    Collection<DiffEntry> possibleRenames = filteredRenameDetector.compute(changes, Set.of());
+    Collection<DiffEntry> result = filteredRenameDetector.compute(changes, Set.of("pathA"));
 
-    assertThat(possibleRenames).hasSize(2);
-  }
-
-  @Ignore //TODO shouldn't the compute method take into account Paths in the line 46?
-  @Test
-  public void compute_whenOnlyOnePathOutOfTwoIncluded_thenReturnOneDiff() throws IOException {
-    RenameDetector renameDetector = mock(RenameDetector.class);
-    FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(renameDetector);
-
-    Collection<DiffEntry> changes = Set.of(mockedDiffEntry("pathA"), mockedDiffEntry("pathB"));
-    Set<String> paths = Set.of("pathA");
-
-    Collection<DiffEntry> possibleRenames = filteredRenameDetector.compute(changes, paths);
-
-    assertThat(possibleRenames).hasSize(1);
-  }
-
-  private DiffEntry mockedDiffEntry(String path) {
-    return mockedDiffEntry(path, DiffEntry.ChangeType.ADD);
+    verify(renameDetector).addAll(List.of(diffEntry1, diffEntry2, diffEntry3));
+    assertThat(result).isEqualTo(expected);
   }
 
   private DiffEntry mockedDiffEntry(String path, DiffEntry.ChangeType type) {

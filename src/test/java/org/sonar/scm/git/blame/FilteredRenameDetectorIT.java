@@ -23,14 +23,14 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.diff.DiffEntry;
-import org.eclipse.jgit.diff.RenameDetector;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.junit.Before;
 import org.junit.Test;
+import org.sonar.scm.git.blame.diff.DiffEntry;
+import org.sonar.scm.git.blame.diff.RenameDetector;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
