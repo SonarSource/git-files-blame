@@ -21,7 +21,7 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import org.apache.commons.lang.SystemUtils;
+import org.apache.commons.lang3.SystemUtils;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
