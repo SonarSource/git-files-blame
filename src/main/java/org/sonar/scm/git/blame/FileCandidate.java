@@ -134,8 +134,9 @@ class FileCandidate {
         Region next = r.next;
         bTail = add(bTail, b, r);
         r = next;
-        if (rEnd == e.getEndB())
+        if (rEnd == e.getEndB()) {
           eIdx++;
+        }
         continue;
       }
 

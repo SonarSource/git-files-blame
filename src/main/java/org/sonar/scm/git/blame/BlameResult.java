@@ -41,9 +41,10 @@ public class BlameResult {
 
   public void process(String commitHash, Date commitDate, String authorEmail, FileCandidate fileCandidate) {
 
-    while (fileCandidate.getRegionList() != null) {
-      int resLine = fileCandidate.getRegionList().resultStart;
-      int resEnd = getResultEnd(fileCandidate.getRegionList());
+    Region currentRegion;
+    while ((currentRegion = fileCandidate.getRegionList()) != null) {
+      int resLine = currentRegion.resultStart;
+      int resEnd = getResultEnd(currentRegion);
 
       FileBlame fileBlame = fileBlameByPath.get(fileCandidate.getOriginalPath());
       for (; resLine < resEnd; resLine++) {
@@ -51,7 +52,7 @@ public class BlameResult {
         fileBlame.commitDates[resLine] = commitDate;
         fileBlame.authorEmails[resLine] = authorEmail;
       }
-      fileCandidate.setRegionList(fileCandidate.getRegionList().next);
+      fileCandidate.setRegionList(currentRegion.next);
     }
   }
 

@@ -92,7 +92,7 @@ public class FileCandidateTest {
     parent.takeBlame(editList, child);
 
     assertThat(child.getRegionList().length).isEqualTo(2);
-    assertThat(child.getRegionList().resultStart).isEqualTo(0);
+    assertThat(child.getRegionList().resultStart).isZero();
     assertThat(parent.getRegionList()).isNull();
   }
 
@@ -107,7 +107,7 @@ public class FileCandidateTest {
     editList.add(new Edit(50, 60, 50, 60));
     parent.takeBlame(editList, child);
 
-    assertThat(child.getRegionList().resultStart).isEqualTo(0);
+    assertThat(child.getRegionList().resultStart).isZero();
     assertThat(child.getRegionList().length).isEqualTo(10);
     assertThat(child.getRegionList().next.resultStart).isEqualTo(50);
     assertThat(child.getRegionList().next.length).isEqualTo(10);
