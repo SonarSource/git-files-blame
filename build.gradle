@@ -36,21 +36,36 @@ dependencies {
 }
 
 sonarqube {
-    dependsOn test
     properties {
         property 'sonar.projectName', projectTitle
 
     }
 }
 
-test {
-    finalizedBy jacocoTestReport // report is always generated after tests run
-}
-jacocoTestReport {
-    dependsOn test // tests are required to run before generating the report
-    reports {
-        xml.required = true
-        csv.required = false
-        html.required = false
+
+subprojects {
+    apply plugin: 'com.jfrog.artifactory'
+    apply plugin: 'jacoco'
+    apply plugin: 'java'
+
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(11)
+        }
     }
+
+    jacoco {
+        toolVersion = "0.8.7"
+    }
+
+    jacocoTestReport {
+        reports {
+            xml.required = true
+            csv.required = false
+            html.required = false
+        }
+    }
+    rootProject.tasks["sonarqube"].dependsOn jacocoTestReport
+
 }
