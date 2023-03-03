@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
@@ -46,11 +47,13 @@ public class BlameGenerator {
    * Revision pool used to acquire commits from.
    */
   private final RevWalk revPool;
+  private final BiConsumer<Integer, String> progressCallBack;
 
-  public BlameGenerator(Repository repository, FileBlamer fileBlamer, StatefulCommitFactory statefulCommitFactory) {
+  public BlameGenerator(Repository repository, FileBlamer fileBlamer, StatefulCommitFactory statefulCommitFactory, BiConsumer<Integer, String> progressCallBack) {
     this.fileBlamer = fileBlamer;
     this.statefulCommitFactory = statefulCommitFactory;
     this.revPool = new RevWalk(repository);
+    this.progressCallBack = progressCallBack;
   }
 
   private void prepareStartCommit(ObjectId startCommit) throws IOException {
@@ -91,7 +94,9 @@ public class BlameGenerator {
     for (int i = 1; !queue.isEmpty(); i++) {
       StatefulCommit current = queue.pollFirst();
       LOG.debug("{} Processing commit {}", i, current);
-
+      if (progressCallBack != null) {
+        progressCallBack.accept(i, current.getCommit().getName());
+      }
       if (current.getParentCount() > 0) {
         process(current);
       } else {

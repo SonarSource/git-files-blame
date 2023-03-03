@@ -19,13 +19,18 @@
  */
 package org.sonar.scm.git.blame;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.junit.Test;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
@@ -196,7 +201,6 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    */
   @Test
   public void consumes_queue_in_reverse_commit_time_order() throws IOException, GitAPIException {
-    // TODO how to assert that we are not iterating >200 times?
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
     String c1 = commit("fileA");
 
@@ -218,7 +222,12 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
     git.add().addFilepattern("fileA").call();
     git.commit().setAmend(true).call();
 
-    BlameResult result = blame.call();
+    MutableInt processedCommits = new MutableInt(0);
+    blame.setProgressCallBack((iterationNb, commitHash) -> processedCommits.increment())
+      .call();
+    assertThat(processedCommits.getValue())
+      .as("We shouldn't process more commits than the total of commits in the repo")
+      .isLessThan(105);
 
   }
 
