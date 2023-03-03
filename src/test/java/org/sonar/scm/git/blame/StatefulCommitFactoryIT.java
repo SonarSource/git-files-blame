@@ -21,6 +21,7 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import org.apache.commons.lang3.SystemUtils;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -36,7 +37,7 @@ public class StatefulCommitFactoryIT extends AbstractGitIT {
 
   @Test
   public void create_ignores_symlinks() throws IOException, GitAPIException {
-    //Assume.assumeFalse(SystemUtils.IS_OS_WINDOWS);
+    Assume.assumeFalse(SystemUtils.IS_OS_WINDOWS);
     String fileName = "fileA";
     String symlinkName = "symlink";
 
