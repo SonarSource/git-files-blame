@@ -30,7 +30,6 @@ import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -40,10 +39,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-
 public class FileBlamerTest {
 
   private final static Date ANY_DATE = Date.from(LocalDateTime.now().toInstant(ZoneOffset.UTC));
+  private final static Date ANOTHER_DATE = Date.from(LocalDateTime.now().minusDays(1).toInstant(ZoneOffset.UTC));
   private final static String ANY_EMAIL = "email@email.com";
   private final static String ANY_COMMIT_NAME = "commit-name";
 
@@ -56,13 +55,18 @@ public class FileBlamerTest {
   @Before
   public void before() {
     when(revCommit.getName()).thenReturn(ANY_COMMIT_NAME);
+
     PersonIdent personIdent = mock(PersonIdent.class);
     when(revCommit.getAuthorIdent()).thenReturn(personIdent);
     when(personIdent.getEmailAddress()).thenReturn(ANY_EMAIL);
     when(personIdent.getWhen()).thenReturn(ANY_DATE);
+
+    PersonIdent personIdent2 = mock(PersonIdent.class);
+    when(revCommit.getCommitterIdent()).thenReturn(personIdent2);
+    when(personIdent2.getEmailAddress()).thenReturn("another@email.com");
+    when(personIdent2.getWhen()).thenReturn(ANOTHER_DATE);
   }
 
-  @Ignore // NPE to fix
   @Test
   public void processResult_whenCommitContainsFileCandidate_thenCallBlameResult() {
     FileBlamer fileBlamer = new FileBlamer(null, null, null, null, blameResult, false);
@@ -73,7 +77,7 @@ public class FileBlamerTest {
 
     fileBlamer.processResult(statefulCommit);
 
-    verify(blameResult).process(ANY_COMMIT_NAME, ANY_DATE, ANY_EMAIL, fileCandidate);
+    verify(blameResult).process(ANY_COMMIT_NAME, ANOTHER_DATE, ANY_EMAIL, fileCandidate);
   }
 
   @Test
