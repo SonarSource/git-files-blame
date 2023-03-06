@@ -51,8 +51,10 @@ import org.junit.Test;
 public class BlameGeneratorTest {
   private final Path projectDir = Paths.get("/home/meneses/git/TypeScript").toAbsolutePath();
 
+  private final Path resultDir = Paths.get("/tmp/results").toAbsolutePath();
+
   @Test
-  @Ignore
+  @Ignore("Used to validate the correctness of the results")
   public void testNewBlameGenerator() throws IOException, GitAPIException {
     try (Repository repo = loadRepository(projectDir)) {
       RepositoryBlameCommand repoBlameCmd = new RepositoryBlameCommand(repo)
@@ -60,12 +62,12 @@ public class BlameGeneratorTest {
         .setFilePaths(Set.of("package.json"))
         .setTextComparator(RawTextComparator.WS_IGNORE_ALL);
       BlameResult result = repoBlameCmd.call();
-      writeResults("/home/meneses/new.txt", result);
+      writeResults(resultDir.resolve("new.txt").toString(), result);
     }
   }
 
   @Test
-  @Ignore
+  @Ignore("Used to validate the correctness of the results")
   public void testOldImplementation() throws IOException, InterruptedException {
     ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     ConcurrentLinkedQueue<org.eclipse.jgit.blame.BlameResult> results = new ConcurrentLinkedQueue<>();
@@ -91,7 +93,7 @@ public class BlameGeneratorTest {
 
       executorService.shutdown();
       executorService.awaitTermination(1, TimeUnit.HOURS);
-      writeResultsOldImplementation("/home/meneses/old.txt", results);
+      writeResultsOldImplementation(resultDir.resolve("old.txt").toString(), results);
     }
   }
 

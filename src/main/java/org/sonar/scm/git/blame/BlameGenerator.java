@@ -26,14 +26,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.TreeWalk;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class BlameGenerator {
+
+  private static final Logger LOG = LoggerFactory.getLogger(BlameGenerator.class);
+
   private final TreeSet<StatefulCommit> queue = new TreeSet<>(StatefulCommit.TIME_COMPARATOR);
   private final FileBlamer fileBlamer;
   private final StatefulCommitFactory statefulCommitFactory;
@@ -81,12 +85,12 @@ public class BlameGenerator {
     }
   }
 
-  public void compute(ObjectId startCommit) throws IOException, NoHeadException {
+  public void compute(ObjectId startCommit) throws IOException {
     prepareStartCommit(startCommit);
 
     for (int i = 1; !queue.isEmpty(); i++) {
       StatefulCommit current = queue.pollFirst();
-      System.out.println(i + " " + current);
+      LOG.debug("{} Processing commit {}", i, current);
 
       if (current.getParentCount() > 0) {
         process(current);

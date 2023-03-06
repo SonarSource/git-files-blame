@@ -171,7 +171,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
       });
 
       if (!removedFiles.isEmpty()) {
-        LOG.debug("The following files will not be blamed because they have uncommitted changes: " + removedFiles);
+        LOG.debug("The following files will not be blamed because they have uncommitted changes: {}", removedFiles);
       }
       return filteredFiles;
     } catch (IOException e) {

@@ -45,7 +45,7 @@ public class FileTreeComparator {
    * If the number of files we are interested in is smaller than this threshold, create a filter to only look
    * for these files. Creating the filter is expensive and is not worth it for large number of files.
    */
-  private final static int THRESHOLD_FILTER_FILES = 100;
+  private static final int THRESHOLD_FILTER_FILES = 100;
 
   private final MutableObjectId idBuf = new MutableObjectId();
   private final FilteredRenameDetector filteredRenameDetector;

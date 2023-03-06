@@ -51,12 +51,11 @@ public class StatefulCommitFactory {
     treeWalk.reset(commit.getTree());
 
     while (treeWalk.next()) {
-      if (filePathsToBlame != null && !filePathsToBlame.contains(treeWalk.getPathString())) {
+      if ((filePathsToBlame != null && !filePathsToBlame.contains(treeWalk.getPathString()))
+        || !isFile(treeWalk.getRawMode(0))) {
         continue;
       }
-      if (!isFile(treeWalk.getRawMode(0))) {
-        continue;
-      }
+
       treeWalk.getObjectId(idBuf, 0);
       files.add(new FileCandidate(treeWalk.getPathString(), treeWalk.getPathString(), idBuf.toObjectId()));
     }

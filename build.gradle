@@ -36,6 +36,6 @@ dependencies {
 sonarqube {
     properties {
         property 'sonar.projectName', projectTitle
-
+        property "sonar.exclusions","src/main/java/org/sonar/scm/git/blame/diff/**"
     }
 }

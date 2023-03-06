@@ -41,6 +41,7 @@ public class SameThreadExecutorService extends AbstractExecutorService {
    */
   @Override
   public void shutdown() {
+    //Empty because executor can't be shutdown
   }
 
   /**
