@@ -15,6 +15,9 @@ java {
     }
 }
 
+apply plugin: 'com.jfrog.artifactory'
+apply plugin: 'maven-publish'
+
 ext {
     buildNumber = System.getProperty("buildNumber")
 }
