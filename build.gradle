@@ -6,6 +6,8 @@ plugins {
     id 'jacoco'
 }
 
+group = 'org.sonarsource.git.blame'
+version = '1.0-SNAPSHOT'
 
 java {
     toolchain {
@@ -13,11 +15,24 @@ java {
     }
 }
 
-group = 'org.sonarsource.git.blame'
-version = '1.0-SNAPSHOT'
-
 repositories {
-    mavenCentral()
+    maven {
+        url "https://maven.google.com"
+    }
+    def repository = project.hasProperty('qa') ? 'sonarsource-qa' : 'sonarsource'
+    maven {
+        url "https://repox.jfrog.io/repox/${repository}"
+        // The environment variables ARTIFACTORY_PRIVATE_USERNAME and ARTIFACTORY_PRIVATE_PASSWORD are used on QA env (Jenkins)
+        // On local box, please add artifactoryUsername and artifactoryPassword to ~/.gradle/gradle.properties
+        def artifactoryUsername = System.env.'ARTIFACTORY_PRIVATE_USERNAME' ?: (project.hasProperty('artifactoryUsername') ? project.getProperty('artifactoryUsername') : '')
+        def artifactoryPassword = System.env.'ARTIFACTORY_PRIVATE_PASSWORD' ?: (project.hasProperty('artifactoryPassword') ? project.getProperty('artifactoryPassword') : '')
+        if (artifactoryUsername && artifactoryPassword) {
+            credentials {
+                username = artifactoryUsername
+                password = artifactoryPassword
+            }
+        }
+    }
 }
 
 dependencies {
@@ -42,12 +57,6 @@ sonarqube {
     }
 }
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(11)
-    }
-}
-
 jacoco {
     toolVersion = "0.8.7"
 }
@@ -55,8 +64,65 @@ jacoco {
 jacocoTestReport {
     reports {
         xml.required = true
-        csv.required = false
-        html.required = false
     }
 }
 tasks['sonarqube'].dependsOn jacocoTestReport
+
+artifactory {
+    clientConfig.includeEnvVars = true
+    clientConfig.envVarsExcludePatterns = '*password*,*PASSWORD*,*secret*,*MAVEN_CMD_LINE_ARGS*,sun.java.command,*token*,*TOKEN*,*LOGIN*,*login*,*KEY*,*signing*'
+    contextUrl = System.getenv('ARTIFACTORY_URL')
+    publish {
+        repository {
+            repoKey = System.getenv('ARTIFACTORY_DEPLOY_REPO')
+            username = System.getenv('ARTIFACTORY_DEPLOY_USERNAME')
+            password = System.getenv('ARTIFACTORY_DEPLOY_PASSWORD')
+        }
+        defaults {
+            properties = [
+                    'build.name': 'git-files-blame',
+                    'build.number': System.getenv('BUILD_NUMBER'),
+                    'pr.branch.target': System.getenv('PULL_REQUEST_BRANCH_TARGET'),
+                    'pr.number': System.getenv('PULL_REQUEST_NUMBER'),
+                    'vcs.branch': System.getenv('GIT_BRANCH'),
+                    'vcs.revision': System.getenv('GIT_COMMIT'),
+                    'version': version
+            ]
+            publications 'pluginMaven'
+            publishPom = true // Publish generated POM files to Artifactory (true by default)
+            publishIvy = false // Publish generated Ivy descriptor files to Artifactory (true by default)
+        }
+    }
+    clientConfig.info.buildName = 'git-files-blame'
+    clientConfig.info.buildNumber = System.getenv('BUILD_NUMBER')
+    // The name of this variable is important because it's used by the delivery process when extracting version from Artifactory build info.
+    clientConfig.info.addEnvironmentProperty('PROJECT_VERSION', "${version}")
+}
+
+signing {
+    def signingKeyId = findProperty("signingKeyId")
+    def signingKey = findProperty("signingKey")
+    def signingPassword = findProperty("signingPassword")
+    useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
+    required {
+        def branch = System.getenv()["CIRRUS_BRANCH"]
+        return (branch == 'master' || branch ==~ 'branch-[\\d.]+') &&
+                gradle.taskGraph.hasTask(":artifactoryPublish")
+    }
+    sign publishing.publications
+}
+
+tasks.withType(Sign) {
+    onlyIf {
+        def branch = System.getenv()["CIRRUS_BRANCH"]
+        return !artifactoryPublish.skip &&
+                (branch == 'master' || branch ==~ 'branch-[\\d.]+') &&
+                gradle.taskGraph.hasTask(":artifactoryPublish")
+    }
+}
+
+tasks.withType(Test).configureEach {
+    doLast {
+        Thread.sleep(2000) // https://github.com/gradle/gradle/issues/16603
+    }
+}
