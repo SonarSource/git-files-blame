@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.eclipse.jgit.api.GitCommand;
@@ -63,6 +64,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
   private ObjectId startCommit = null;
   private Set<String> filePaths = null;
   private boolean multithreading = false;
+  private BiConsumer<Integer, String> progressCallBack;
 
   public RepositoryBlameCommand(Repository repo) {
     super(repo);
@@ -110,6 +112,17 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     return this;
   }
 
+  /**
+   * Add a callback to check the progress of the algorithm
+   * @param progressCallBack Consumer to be called each time a commit is processed by the algorithm.
+   * First parameter of the callback is the commit iteration number, second is the commit hash that is starting to be processed.
+   * A commit can be processed multiple time in the algorithm. (Depending on branching and merging)
+   */
+  public RepositoryBlameCommand setProgressCallBack(BiConsumer<Integer, String> progressCallBack) {
+    this.progressCallBack = progressCallBack;
+    return this;
+  }
+
   @Override
   public BlameResult call() throws GitAPIException {
     BlameResult blameResult = new BlameResult();
@@ -129,7 +142,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
       }
 
       StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(filteredFilePaths);
-      BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, statefulCommitFactory);
+      BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, statefulCommitFactory, progressCallBack);
       blameGenerator.compute(commit);
     } catch (IOException e) {
       throw new IllegalStateException("Failed to blame repository files", e);
