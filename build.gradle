@@ -1,23 +1,17 @@
 plugins {
-    // Apply the java-library plugin for API and implementation separation.
-    id 'java-library'
+    id 'java'
     id 'com.jfrog.artifactory' version '4.28.1'
     id "org.sonarqube" version "3.3"
     id 'jacoco'
 }
 
+group = 'org.sonarsource.git.blame'
+version = '1.0-SNAPSHOT'
 
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(11)
     }
-}
-
-group = 'org.sonarsource.git.blame'
-version = '1.0-SNAPSHOT'
-
-repositories {
-    mavenCentral()
 }
 
 dependencies {
@@ -34,17 +28,111 @@ dependencies {
     testImplementation 'org.mockito:mockito-core:5.1.1'
 }
 
+apply plugin: 'java'
+apply plugin: 'com.jfrog.artifactory'
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+ext {
+    release = project.hasProperty('release') && project.getProperty('release')
+    buildNumber = System.getProperty("buildNumber")
+}
+// Replaces the version defined in sources, usually x.y-SNAPSHOT, by a version identifying the build.
+if (version.endsWith('-SNAPSHOT') && ext.buildNumber != null) {
+    def versionSuffix = (version.toString().count('.') == 1 ? ".0.${ext.buildNumber}" : ".${ext.buildNumber}")
+    version = version.replace('-SNAPSHOT', versionSuffix)
+}
+
+repositories {
+    def repository = project.hasProperty('qa') ? 'sonarsource-qa' : 'sonarsource'
+    maven {
+        url "https://repox.jfrog.io/repox/${repository}"
+        // The environment variables ARTIFACTORY_PRIVATE_USERNAME and ARTIFACTORY_PRIVATE_PASSWORD are used on QA env (Jenkins)
+        // On local box, please add artifactoryUsername and artifactoryPassword to ~/.gradle/gradle.properties
+        def artifactoryUsername = System.env.'ARTIFACTORY_PRIVATE_USERNAME' ?: (project.hasProperty('artifactoryUsername') ? project.getProperty('artifactoryUsername') : '')
+        def artifactoryPassword = System.env.'ARTIFACTORY_PRIVATE_PASSWORD' ?: (project.hasProperty('artifactoryPassword') ? project.getProperty('artifactoryPassword') : '')
+        if (artifactoryUsername && artifactoryPassword) {
+            credentials {
+                username = artifactoryUsername
+                password = artifactoryPassword
+            }
+        }
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = projectTitle
+                description = project.description
+                url = 'http://www.sonarqube.org/'
+                organization {
+                    name = 'SonarSource'
+                    url = 'http://www.sonarsource.com'
+                }
+                licenses {
+                    license {
+                        name = 'GNU LGPL 3'
+                        url = 'http://www.gnu.org/licenses/lgpl.txt'
+                        distribution = 'repo'
+                    }
+                }
+                scm {
+                    url = 'https://github.com/SonarSource/git-files-blame'
+                }
+                developers {
+                    developer {
+                        id = 'sonarsource-team'
+                        name = 'SonarSource Team'
+                    }
+                }
+            }
+            from components.java
+            if (release) {
+                artifact sourcesJar
+                artifact javadocJar
+            }
+        }
+    }
+}
+
+artifactory {
+    clientConfig.setIncludeEnvVars(true)
+    clientConfig.setEnvVarsExcludePatterns('*password*,*PASSWORD*,*secret*,*MAVEN_CMD_LINE_ARGS*,sun.java.command,*token*,*TOKEN*,*LOGIN*,*login*,*key*,*KEY*,*signing*')
+    contextUrl = System.getenv('ARTIFACTORY_URL')
+    publish {
+        repository {
+            repoKey = System.getenv('ARTIFACTORY_DEPLOY_REPO')
+            username = System.getenv('ARTIFACTORY_DEPLOY_USERNAME') ?: project.properties.artifactoryUsername
+            password = System.getenv('ARTIFACTORY_DEPLOY_PASSWORD') ?: project.properties.artifactoryPaswword
+        }
+        defaults {
+            properties = [
+                    'build.name'      : 'git-files-blame',
+                    'build.number'    : System.getenv('BUILD_NUMBER'),
+                    'pr.branch.target': System.getenv('GITHUB_BASE_BRANCH'),
+                    'pr.number'       : System.getenv('PULL_REQUEST'),
+                    'vcs.branch'      : System.getenv('GITHUB_BRANCH'),
+                    'vcs.revision'    : System.getenv('GIT_SHA1'),
+                    'version'         : version
+            ]
+            publications('mavenJava')
+            publishPom = true
+            publishIvy = false
+        }
+    }
+    clientConfig.info.setBuildName('git-files-blame')
+    clientConfig.info.setBuildNumber(System.getenv('BUILD_NUMBER'))
+    // The name of this variable is important because it's used by the delivery process when extracting version from Artifactory build info.
+    clientConfig.info.addEnvironmentProperty('PROJECT_VERSION', "${version}")
+}
+
 sonarqube {
     properties {
         property 'sonar.projectName', projectTitle
         property "sonar.exclusions","src/main/java/org/sonar/scm/git/blame/diff/**"
         property "sonar.java.coveragePlugin", "jacoco"
-    }
-}
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(11)
     }
 }
 
@@ -60,3 +148,25 @@ jacocoTestReport {
     }
 }
 tasks['sonarqube'].dependsOn jacocoTestReport
+
+signing {
+    def signingKeyId = findProperty("signingKeyId")
+    def signingKey = findProperty("signingKey")
+    def signingPassword = findProperty("signingPassword")
+    useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
+    required {
+        def branch = System.getenv()["CIRRUS_BRANCH"]
+        return (branch == 'master' || branch ==~ 'branch-[\\d.]+') &&
+                gradle.taskGraph.hasTask(":artifactoryPublish")
+    }
+    sign publishing.publications
+}
+
+tasks.withType(Sign) {
+    onlyIf {
+        def branch = System.getenv()["CIRRUS_BRANCH"]
+        return !artifactoryPublish.skip &&
+                (branch == 'master' || branch ==~ 'branch-[\\d.]+') &&
+                gradle.taskGraph.hasTask(":artifactoryPublish")
+    }
+}
