@@ -20,11 +20,9 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.sonar.scm.git.blame.diff.DiffEntry;
 import org.sonar.scm.git.blame.diff.RenameDetector;
@@ -39,17 +37,17 @@ public class FilteredRenameDetectorTest {
   private final FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(renameDetector);
 
   @Test
-  public void compute_whenChangesHaveAddsNotInPaths_thenFilterThem() throws IOException {
+  public void detectRenames_whenChangesHaveAddsNotInPaths_thenFilterThem() throws IOException {
     DiffEntry addDiffEntry1 = mockedDiffEntry("pathA", DiffEntry.ChangeType.ADD);
     DiffEntry addDiffEntry2 = mockedDiffEntry("pathB", DiffEntry.ChangeType.ADD);
     Collection<DiffEntry> changes = Set.of(addDiffEntry1, addDiffEntry2);
 
-    filteredRenameDetector.compute(changes, Set.of("pathA"));
+    filteredRenameDetector.detectRenames(changes, Set.of("pathA"));
     verify(renameDetector).addAll(List.of(addDiffEntry1));
   }
 
   @Test
-  public void compute_returns_results_of_renameDetector() throws IOException {
+  public void detectRenames_returns_results_of_renameDetector() throws IOException {
     DiffEntry diffEntry1 = mockedDiffEntry("pathA", DiffEntry.ChangeType.ADD);
     DiffEntry diffEntry2 = mockedDiffEntry("pathB", DiffEntry.ChangeType.MODIFY);
     DiffEntry diffEntry3 = mockedDiffEntry("pathC", DiffEntry.ChangeType.DELETE);
@@ -58,7 +56,7 @@ public class FilteredRenameDetectorTest {
     List<DiffEntry> expected = List.of(mock(DiffEntry.class));
     when(renameDetector.compute()).thenReturn(expected);
 
-    Collection<DiffEntry> result = filteredRenameDetector.compute(changes, Set.of("pathA"));
+    Collection<DiffEntry> result = filteredRenameDetector.detectRenames(changes, Set.of("pathA"));
 
     verify(renameDetector).addAll(List.of(diffEntry1, diffEntry2, diffEntry3));
     assertThat(result).isEqualTo(expected);

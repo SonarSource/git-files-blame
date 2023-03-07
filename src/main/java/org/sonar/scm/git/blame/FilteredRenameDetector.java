@@ -38,7 +38,7 @@ public class FilteredRenameDetector {
    * Based on a given collection of ADD and REMOVE file changes and a set of file paths being blamed, this method
    * computes possible RENAME and COPY entries which have a new path that is part of the files being blamed.
    */
-  public List<DiffEntry> compute(Collection<DiffEntry> changes, Set<String> paths) throws IOException {
+  public List<DiffEntry> detectRenames(Collection<DiffEntry> changes, Set<String> paths) throws IOException {
     List<DiffEntry> filtered = new ArrayList<>();
 
     // For new path: skip ADD's that don't match given paths

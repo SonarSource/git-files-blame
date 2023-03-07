@@ -78,21 +78,22 @@ public class FileBlamer {
 
   /**
    * Blame all remaining regions to the commit
+   *
+   * @param source - commit that will be used to associate blame data with remaining regions in files
    */
-  public void processResult(StatefulCommit source) {
-
+  public void saveBlameDataForFilesInCommit(StatefulCommit source) {
     String commitHash = source.getCommit().getName();
     String authorEmail = source.getCommit().getAuthorIdent().getEmailAddress();
     Date commitDate = source.getCommit().getCommitterIdent().getWhen();
     for (FileCandidate sourceFile : source.getAllFiles()) {
       if (sourceFile.getRegionList() != null) {
-        blameResult.process(commitHash, commitDate, authorEmail, sourceFile);
+        blameResult.saveBlameDataForFile(commitHash, commitDate, authorEmail, sourceFile);
       }
     }
   }
 
   public StatefulCommit blameParent(RevCommit parentCommit, StatefulCommit child) throws IOException {
-    List<DiffFile> diffFiles = fileTreeComparator.compute(parentCommit, child.getCommit(), child.getAllPaths());
+    List<DiffFile> diffFiles = fileTreeComparator.findMovedFiles(parentCommit, child.getCommit(), child.getAllPaths());
     StatefulCommit parent = new StatefulCommit(parentCommit, child.getAllFiles().size());
     blameWithFileDiffs(parent, child, diffFiles);
     return parent;
@@ -108,7 +109,7 @@ public class FileBlamer {
       parentStatefulCommits.add(parentStatefulCommit);
 
       // diff files will include added,modified,rename,copy. It will not include unmodified files.
-      fileTreeDiffs.add(fileTreeComparator.compute(parentCommit, child.getCommit(), child.getAllPaths()));
+      fileTreeDiffs.add(fileTreeComparator.findMovedFiles(parentCommit, child.getCommit(), child.getAllPaths()));
     }
 
     // Detect unmodified files (same path)
