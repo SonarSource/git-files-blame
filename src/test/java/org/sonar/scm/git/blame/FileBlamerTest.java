@@ -68,16 +68,16 @@ public class FileBlamerTest {
   }
 
   @Test
-  public void processResult_whenCommitContainsFileCandidate_thenCallBlameResult() {
+  public void saveBlameDataForFilesInCommit_whenCommitContainsFileCandidate_thenCallBlameResult() {
     FileBlamer fileBlamer = new FileBlamer(null, null, null, null, blameResult, false);
     when(fileCandidate.getRegionList()).thenReturn(new Region(0, 0, 2));
 
     StatefulCommit statefulCommit = new StatefulCommit(revCommit, 1);
     statefulCommit.addFile(fileCandidate);
 
-    fileBlamer.processResult(statefulCommit);
+    fileBlamer.saveBlameDataForFilesInCommit(statefulCommit);
 
-    verify(blameResult).process(ANY_COMMIT_NAME, ANOTHER_DATE, ANY_EMAIL, fileCandidate);
+    verify(blameResult).saveBlameDataForFile(ANY_COMMIT_NAME, ANOTHER_DATE, ANY_EMAIL, fileCandidate);
   }
 
   @Test

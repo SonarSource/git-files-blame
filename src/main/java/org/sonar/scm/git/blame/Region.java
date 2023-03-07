@@ -48,32 +48,32 @@ class Region {
    */
   int length;
 
-  Region(int rs, int ss, int len) {
-    resultStart = rs;
-    sourceStart = ss;
-    length = len;
+  Region(int resultStart, int sourceStart, int length) {
+    this.resultStart = resultStart;
+    this.sourceStart = sourceStart;
+    this.length = length;
   }
 
   /**
    * Split the region, assigning a new source position to the first half.
    *
    * @param newSource the new source position.
-   * @param newLen    length of the new region.
+   * @param newLength    length of the new region.
    * @return the first half of the region, at the new source.
    */
-  Region splitFirst(int newSource, int newLen) {
-    return new Region(resultStart, newSource, newLen);
+  Region splitFirst(int newSource, int newLength) {
+    return new Region(resultStart, newSource, newLength);
   }
 
   /**
    * Edit this region to remove the first {@code d} elements.
    *
-   * @param d number of elements to remove from the start of this region.
+   * @param elementsToRemove number of elements to remove from the start of this region.
    */
-  void slideAndShrink(int d) {
-    resultStart += d;
-    sourceStart += d;
-    length -= d;
+  void slideAndShrink(int elementsToRemove) {
+    resultStart += elementsToRemove;
+    sourceStart += elementsToRemove;
+    length -= elementsToRemove;
   }
 
   /**

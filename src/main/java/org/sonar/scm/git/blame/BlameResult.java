@@ -39,8 +39,7 @@ public class BlameResult {
     fileBlameByPath.put(path, new FileBlame(path, size));
   }
 
-  public void process(String commitHash, Date commitDate, String authorEmail, FileCandidate fileCandidate) {
-
+  public void saveBlameDataForFile(String commitHash, Date commitDate, String authorEmail, FileCandidate fileCandidate) {
     Region currentRegion;
     while ((currentRegion = fileCandidate.getRegionList()) != null) {
       int resLine = currentRegion.resultStart;

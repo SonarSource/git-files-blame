@@ -68,28 +68,28 @@ public class FileTreeComparator {
    * If any file can't be found (meaning that it was added by the child commit), we need to compute all the files added and
    * removed between the parent and child commits, so that we can run the rename detector.
    */
-  public List<DiffFile> compute(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
-    if (filePaths.size() < THRESHOLD_FILTER_FILES) {
-      List<DiffFile> modifiedFiles = find(parent, child, filePaths);
-      if (modifiedFiles != null) {
-        return modifiedFiles;
+  public List<DiffFile> findMovedFiles(RevCommit parent, RevCommit child, Set<String> filePathsToInclude) throws IOException {
+    if (filePathsToInclude.size() < THRESHOLD_FILTER_FILES) {
+      List<DiffFile> movedFiles = findMovedFilesForSmallSet(parent, child, filePathsToInclude);
+      if (movedFiles != null) {
+        return movedFiles;
       }
     }
 
     // to detect renames, we need to collect all modified files in the repo
     Collection<DiffEntry> diffEntries = getDiffEntries(parent, child);
-    diffEntries = detectRenames(filePaths, diffEntries);
+    diffEntries = detectRenames(filePathsToInclude, diffEntries);
 
     // delete entries or any other entry that doesn't have one of the child paths as the newPath is irrelevant
     return diffEntries.stream()
       .filter(entry -> entry.getChangeType() != DiffEntry.ChangeType.DELETE)
-      .filter(entry -> filePaths.contains(entry.getNewPath()))
+      .filter(entry -> filePathsToInclude.contains(entry.getNewPath()))
       .map(entry -> new DiffFile(entry.getNewPath(), entry.getOldPath(), entry.getOldId().toObjectId()))
       .collect(Collectors.toList());
   }
 
   @CheckForNull
-  private List<DiffFile> find(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
+  private List<DiffFile> findMovedFilesForSmallSet(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
     if (!filePaths.equals(filterFilePaths)) {
       // this is expensive to compute
       TreeFilter pathFilterGroup = PathFilterGroup.createFromStrings(filePaths);
@@ -101,7 +101,7 @@ public class FileTreeComparator {
     treeWalk.setFilter(filesAndAnyDiffFilter);
     treeWalk.reset(parent.getTree(), child.getTree());
 
-    List<DiffFile> modifiedFiles = new ArrayList<>(filePaths.size());
+    List<DiffFile> movedFiles = new ArrayList<>(filePaths.size());
 
     while (treeWalk.next()) {
       if (filePaths.contains(treeWalk.getPathString())) {
@@ -110,10 +110,10 @@ public class FileTreeComparator {
           // We found an added file. Abort
           return null;
         }
-        modifiedFiles.add(new DiffFile(treeWalk.getPathString(), treeWalk.getPathString(), idBuf.toObjectId()));
+        movedFiles.add(new DiffFile(treeWalk.getPathString(), treeWalk.getPathString(), idBuf.toObjectId()));
       }
     }
-    return modifiedFiles;
+    return movedFiles;
   }
 
   private boolean isAddedOrNotFile() {
@@ -132,7 +132,7 @@ public class FileTreeComparator {
   }
 
   private Collection<DiffEntry> detectRenames(Set<String> newFilePaths, Collection<DiffEntry> diffEntries) throws IOException {
-    return filteredRenameDetector.compute(diffEntries, newFilePaths);
+    return filteredRenameDetector.detectRenames(diffEntries, newFilePaths);
   }
 
   public static class DiffFile {

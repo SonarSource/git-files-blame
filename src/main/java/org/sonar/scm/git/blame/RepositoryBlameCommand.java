@@ -143,7 +143,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
 
       StatefulCommitFactory statefulCommitFactory = new StatefulCommitFactory(filteredFilePaths);
       BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, statefulCommitFactory, progressCallBack);
-      blameGenerator.compute(commit);
+      blameGenerator.generateBlame(commit);
     } catch (IOException e) {
       throw new IllegalStateException("Failed to blame repository files", e);
     }

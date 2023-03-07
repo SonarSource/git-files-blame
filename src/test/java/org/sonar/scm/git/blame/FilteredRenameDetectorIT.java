@@ -45,7 +45,7 @@ public class FilteredRenameDetectorIT extends AbstractGitIT {
   }
 
   @Test
-  public void detect_exact_rename_and_similar_rename_from_same_file() throws IOException, GitAPIException {
+  public void detectRenames_exact_rename_and_similar_rename_from_same_file() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2");
     String c1 = commit("fileA");
 
@@ -56,7 +56,7 @@ public class FilteredRenameDetectorIT extends AbstractGitIT {
     String c2 = commit("fileB", "fileC");
 
     Collection<DiffEntry> diffEntries = getDiffEntries(c1, c2);
-    Collection<DiffEntry> compute = filteredRenameDetector.compute(diffEntries, Set.of("fileB", "fileC"));
+    Collection<DiffEntry> compute = filteredRenameDetector.detectRenames(diffEntries, Set.of("fileB", "fileC"));
     assertThat(compute).extracting(DiffEntry::getChangeType, DiffEntry::getOldPath, DiffEntry::getNewPath)
       .containsOnly(tuple(DiffEntry.ChangeType.COPY, "fileA", "fileB"),
         tuple(DiffEntry.ChangeType.RENAME, "fileA", "fileC"));

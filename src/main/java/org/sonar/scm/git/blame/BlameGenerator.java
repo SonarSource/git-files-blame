@@ -88,7 +88,7 @@ public class BlameGenerator {
     }
   }
 
-  public void compute(ObjectId startCommit) throws IOException {
+  public void generateBlame(ObjectId startCommit) throws IOException {
     prepareStartCommit(startCommit);
 
     for (int i = 1; !queue.isEmpty(); i++) {
@@ -101,7 +101,7 @@ public class BlameGenerator {
         process(current);
       } else {
         // no more parents, so blame all remaining regions to the current commit
-        fileBlamer.processResult(current);
+        fileBlamer.saveBlameDataForFilesInCommit(current);
       }
     }
     close();
@@ -130,7 +130,7 @@ public class BlameGenerator {
     }
 
     //Only process the result at the end, when all the regions have been assigned to each parent
-    fileBlamer.processResult(commitCandidate);
+    fileBlamer.saveBlameDataForFilesInCommit(commitCandidate);
   }
 
   private void close() {

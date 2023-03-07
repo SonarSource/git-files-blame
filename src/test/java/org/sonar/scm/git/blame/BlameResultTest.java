@@ -31,21 +31,21 @@ public class BlameResultTest {
   private final static Date ANY_DATE = Date.from(LocalDateTime.now().toInstant(ZoneOffset.UTC));
 
   @Test
-  public void process_whenFileCandidateHasOneRegionWithTwoLines_thenFileBlameContainsTwoLines() {
+  public void saveBlameDataForFile_whenFileCandidateHasOneRegionWithTwoLines_thenFileBlameContainsTwoLines() {
     BlameResult blameResult = new BlameResult();
 
     FileCandidate fileCandidate = new FileCandidate("path", "path", null);
     fileCandidate.setRegionList(new Region(0, 0, 2));
     blameResult.initialize("path", 2);
 
-    blameResult.process("hash", ANY_DATE, "email", fileCandidate);
+    blameResult.saveBlameDataForFile("hash", ANY_DATE, "email", fileCandidate);
 
     assertThat(blameResult.getFileBlames()).hasSize(1);
     assertThat(blameResult.getFileBlameByPath().get("path").lines()).isEqualTo(2);
   }
 
   @Test
-  public void process_whenFileCandidateHasTwoRegionsWithOneLineEach_thenFileBlameContainsTwoLines() {
+  public void saveBlameDataForFile_whenFileCandidateHasTwoRegionsWithOneLineEach_thenFileBlameContainsTwoLines() {
     BlameResult blameResult = new BlameResult();
 
     FileCandidate fileCandidate = new FileCandidate("path", "path", null);
@@ -54,7 +54,7 @@ public class BlameResultTest {
     fileCandidate.setRegionList(regionHead);
     blameResult.initialize("path", 2);
 
-    blameResult.process("hash", ANY_DATE, "email", fileCandidate);
+    blameResult.saveBlameDataForFile("hash", ANY_DATE, "email", fileCandidate);
 
     assertThat(blameResult.getFileBlames()).hasSize(1);
     assertThat(blameResult.getFileBlameByPath().get("path").lines()).isEqualTo(2);
