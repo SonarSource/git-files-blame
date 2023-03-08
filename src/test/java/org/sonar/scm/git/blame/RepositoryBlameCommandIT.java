@@ -20,13 +20,18 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.mutable.MutableInt;
+import org.eclipse.jgit.api.BlameCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.RawTextComparator;
+import org.eclipse.jgit.lib.ConfigConstants;
 import org.junit.Test;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
@@ -38,6 +43,54 @@ import static org.sonar.scm.git.GitUtils.deleteFile;
 import static org.sonar.scm.git.GitUtils.moveFile;
 
 public class RepositoryBlameCommandIT extends AbstractGitIT {
+  @Test
+  public void blame_whenCommittedSymlink_thenReturnNoBlame() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1");
+    String c1 = commit("fileA");
+    Path link = Files.createSymbolicLink(baseDir.resolve("fileB"), baseDir.resolve("fileA"));
+    String c2 = commit("fileB");
+
+    BlameResult result = blame.setFilePaths(Set.of("fileB")).call();
+    org.eclipse.jgit.blame.BlameResult jgitResult = new BlameCommand(git.getRepository()).setFilePath("fileB").call();
+
+    assertThat(jgitResult).isNull();
+    assertThat(result.getFileBlames()).isEmpty();
+  }
+
+  @Test
+  public void blame_whenUncommittedSymlink_thenReturnNoBlame() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1");
+    String c1 = commit("fileA");
+    Path link = Files.createSymbolicLink(baseDir.resolve("fileB"), baseDir.resolve("fileA"));
+
+    BlameResult result = blame.setFilePaths(Set.of("fileB")).call();
+    org.eclipse.jgit.blame.BlameResult jgitResult = new BlameCommand(git.getRepository()).setFilePath("fileB").call();
+
+    assertThat(jgitResult).isNull();
+    assertThat(result.getFileBlames()).isEmpty();
+  }
+
+  @Test
+  public void blame_whenUncommittedFiles_thenReadWorkingDirWithFilteredInputStream() throws IOException, GitAPIException {
+    git.getRepository().getConfig().setBoolean(ConfigConstants.CONFIG_CORE_SECTION, null, "safecrlf", true);
+    git.getRepository().getConfig().setString(ConfigConstants.CONFIG_CORE_SECTION, null, "autocrlf", "input");
+
+    git.getRepository().getConfig().save();
+    createFile(baseDir, "fileA", "line1\nline2");
+    String c1 = commit("fileA");
+
+    // change line termination, but the filtered input string should ignore the \r
+    createFile(baseDir, "fileA", "line1\r\nline2");
+
+    BlameResult result = blame.call();
+    org.eclipse.jgit.blame.BlameResult jgitResult = new BlameCommand(git.getRepository()).setFilePath("fileA").call();
+    List<String> jgitHashes = List.of(jgitResult.getSourceCommit(0).getName(), jgitResult.getSourceCommit(1).getName());
+
+    assertThat(jgitHashes).containsExactly(c1, c1);
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileA", new String[] {c1, c1}));
+  }
+
   @Test
   public void blame_whenUncommittedFiles_thenThereIsNoBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
@@ -247,7 +300,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * <pre>
    *     c1(r1,r2)
    *        |
-   * (100 commits changing an unrelated file)
+   * (5 commits changing an unrelated file)
    *       |
    *   c2(r1,r2)
    *    /    \
@@ -258,35 +311,35 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    */
   @Test
   public void blame_whenThereAreMultipleNodesInQueue_thenPickInReverseCommitTimeOrder() throws IOException, GitAPIException {
-    long time = System.currentTimeMillis() - 1000;
+    long time = 10_000;
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
-    String c1 = commit(time, "fileA");
+    String c1 = commit(time - 1000, "fileA");
 
     String c2 = null;
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i <5; i++) {
       createFile(baseDir, "fileC", "commit " + i);
-      c2 = commit(time + i, "fileC");
+      c2 = commit(time + i*1000, "fileC");
     }
 
     createFile(baseDir, "fileA", "line3", "line4");
-    String c3 = commit(time + 200, "fileA");
+    String c3 = commit(time + 20000, "fileA");
 
     resetHard(c2);
     createFile(baseDir, "fileA", "line1", "line2");
-    String c4 = commit(time + 300, "fileA");
+    String c4 = commit(time + 30000, "fileA");
 
     merge(c3);
+
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
     git.add().addFilepattern("fileA").call();
-    git.commit().setAmend(true).call();
+    String c5 = git.commit().call().getName();
 
     MutableInt processedCommits = new MutableInt(0);
-    blame.setProgressCallBack((iterationNb, commitHash) -> processedCommits.increment())
-      .call();
+    blame.setProgressCallBack((iterationNb, commitHash) -> processedCommits.increment()).call();
     assertThat(processedCommits.getValue())
       .as("We shouldn't process more commits than the total of commits in the repo")
-      .isLessThan(105);
-
+      // work dir + 4 + 5
+      .isLessThan(11);
   }
 
   /**

@@ -58,39 +58,4 @@ public class BlobReaderTest {
 
     assertThat(rawContent).isEqualTo(new RawText(rawText).getRawContent());
   }
-
-  @Test
-  public void loadText_whenUsingPath_thenReturnsContentFromFS() throws IOException {
-    File file = temp.newFile();
-    Repository repository = mock(Repository.class);
-    when(repository.getWorkTree()).thenReturn(file.getParentFile());
-    Files.writeString(file.toPath(), "test");
-    FileCandidate fc = mock(FileCandidate.class);
-    when(fc.getBlob()).thenReturn(ObjectId.zeroId());
-    when(fc.getOriginalPath()).thenReturn(file.getName());
-
-    byte[] rawContent = new BlobReader(repository).loadText(objectReader, fc).getRawContent();
-
-    assertThat(new String(rawContent, StandardCharsets.UTF_8)).isEqualTo("test");
-  }
-
-  @Test
-  public void loadText_whenUsingPathToSymbolicLink_thenReturnsContentFromLinkedFile() throws IOException {
-    File file = temp.newFile();
-    Files.writeString(file.toPath(), "test");
-
-    File link = new File(temp.getRoot(), "link");
-    File symbolicLink = Files.createSymbolicLink(link.toPath(), file.toPath()).toFile();
-
-    FileCandidate fc = mock(FileCandidate.class);
-    when(fc.getBlob()).thenReturn(ObjectId.zeroId());
-    when(fc.getOriginalPath()).thenReturn(symbolicLink.getName());
-
-    Repository repository = mock(Repository.class);
-    when(repository.getWorkTree()).thenReturn(temp.getRoot());
-
-    byte[] rawContent = new BlobReader(repository).loadText(objectReader, fc).getRawContent();
-
-    assertThat(new String(rawContent, StandardCharsets.UTF_8)).isEqualTo("test");
-  }
 }

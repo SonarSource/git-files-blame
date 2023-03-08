@@ -20,23 +20,28 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.treewalk.filter.PathFilter;
 
 /**
  * Reads the contents of an object from git storage (typically a file)
  */
 public class BlobReader {
   private final Repository repository;
+  private final TreeWalk treeWalk;
 
   public BlobReader(Repository repository) {
     this.repository = repository;
+    this.treeWalk = new TreeWalk(repository);
+    this.treeWalk.setRecursive(true);
   }
 
   /**
@@ -63,15 +68,19 @@ public class BlobReader {
   }
 
   private RawText loadText(String path) throws IOException {
-    return new RawText(getBytes(path));
-  }
-
-  private byte[] getBytes(String path) throws IOException {
-    Path filePath = repository.getWorkTree().toPath().resolve(path);
-    if (Files.isSymbolicLink(filePath)) {
-      filePath = Files.readSymbolicLink(filePath);
+    // we use a TreeWalk to find the file, instead of simply accessing the file in the FS, so that we can use the
+    // FileTreeIterator's InputStream, which filters certain characters. For example, it removes windows lines terminators
+    // in files checked out on Windows.
+    FileTreeIterator it = new FileTreeIterator(repository);
+    treeWalk.reset();
+    treeWalk.addTree(it);
+    treeWalk.setFilter(PathFilter.create(path));
+    if (treeWalk.next()) {
+      try (InputStream is = it.openEntryStream()) {
+        return new RawText(is.readAllBytes());
+      }
+    } else {
+      throw new IllegalStateException("Failed to find file in the working directory: " + path);
     }
-
-    return Files.readAllBytes(filePath);
   }
 }
