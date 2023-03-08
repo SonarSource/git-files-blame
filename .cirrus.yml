@@ -11,9 +11,9 @@ env:
 
   #SONARQUBE_NEXT_TOKEN: VAULT[development/kv/data/next data.token]
 
-  #ORG_GRADLE_PROJECT_signingKey: VAULT[development/kv/data/sign data.key]x
-  #ORG_GRADLE_PROJECT_signingPassword: VAULT[development/kv/data/sign data.passphrase]
-  #ORG_GRADLE_PROJECT_signingKeyId: VAULT[development/kv/data/sign data.key_id]
+  ORG_GRADLE_PROJECT_signingKey: VAULT[development/kv/data/sign data.key]
+  ORG_GRADLE_PROJECT_signingPassword: VAULT[development/kv/data/sign data.passphrase]
+  ORG_GRADLE_PROJECT_signingKeyId: VAULT[development/kv/data/sign data.key_id]
 
   GCF_ACCESS_TOKEN: VAULT[development/kv/data/promote data.token]
   PROMOTE_URL: VAULT[development/kv/data/promote data.url]
@@ -43,9 +43,6 @@ build_task:
     cpu: 1.5
     memory: 4G
   env:
-    ORG_GRADLE_PROJECT_signingKey: ENCRYPTED[!cc216dfe592f79db8006f2a591f8f98b40aa2b078e92025623594976fd32f6864c1e6b6ba74b50647f608e2418e6c336!]
-    ORG_GRADLE_PROJECT_signingPassword: ENCRYPTED[!314a8fc344f45e462dd5e8dccd741d7562283a825e78ebca27d4ae9db8e65ce618e7f6aece386b2782a5abe5171467bd!]
-    ORG_GRADLE_PROJECT_signingKeyId: 0x7DCD4258
     SONAR_TOKEN: VAULT[development/kv/data/next data.token]
     SONAR_HOST_URL: VAULT[development/kv/data/next data.url]
     #allow deployment of pull request artifacts to repox
