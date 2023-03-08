@@ -100,7 +100,7 @@ public abstract class AbstractGitIT {
       add.call();
     }
     PersonIdent ident = new PersonIdent("joe", "email@email.com", dateInMs, 0);
-    RevCommit commit = git.commit().setCommitter(ident).setMessage("msg").call();
+    RevCommit commit = git.commit().setCommitter(ident).setAuthor(ident).setMessage("msg").call();
     return commit.getName();
   }
 
