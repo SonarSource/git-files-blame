@@ -19,14 +19,18 @@
  */
 package org.sonar.scm.git.blame;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.mutable.MutableInt;
+import org.eclipse.jgit.api.BlameCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.RawTextComparator;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.junit.Test;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
@@ -60,6 +64,26 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
     BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
     assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
       .isEmpty();
+  }
+
+  @Test
+  public void test() throws IOException, GitAPIException {
+
+    FileRepositoryBuilder repositoryBuilder = new FileRepositoryBuilder();
+    repositoryBuilder.setMustExist( true );
+    repositoryBuilder.setGitDir(new File("/home/leo.geoffroy/dev/tmp/testCRLF2/.git"));
+    Repository repository = repositoryBuilder.build();
+
+    BlameResult result = new RepositoryBlameCommand(repository)
+      .setTextComparator(RawTextComparator.DEFAULT)
+      .call();
+
+    org.eclipse.jgit.blame.BlameResult result2 = new BlameCommand(repository)
+      .setTextComparator(RawTextComparator.DEFAULT)
+      .setFilePath("test.txt").call();
+
+    System.out.println(result);
+    System.out.println(result2);
   }
 
   @Test

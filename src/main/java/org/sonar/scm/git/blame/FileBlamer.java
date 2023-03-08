@@ -33,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
 import org.eclipse.jgit.diff.DiffAlgorithm;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.RawText;
@@ -185,9 +186,9 @@ public class FileBlamer {
    * Move an unmodified file, which may have been copied or renamed, to the parent.
    * The child and parent files have the same BLOB
    */
-  private static void moveFileToParent(GraphNode parent, FileCandidate childFile, String parentPath) {
+  private static void moveFileToParent(GraphNode parent, FileCandidate childFile, @Nullable String parentPath) {
     // child's region could be null if it was already moved to another parent
-    if (childFile.getRegionList() != null) {
+    if (childFile.getRegionList() != null && parentPath != null) {
       FileCandidate parentFile = new FileCandidate(childFile.getOriginalPath(), parentPath, childFile.getBlob(), childFile.getRegionList());
       parent.addFile(parentFile);
       childFile.setRegionList(null);

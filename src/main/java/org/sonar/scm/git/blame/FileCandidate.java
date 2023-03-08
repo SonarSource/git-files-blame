@@ -20,7 +20,7 @@
 package org.sonar.scm.git.blame;
 
 import javax.annotation.CheckForNull;
-import org.eclipse.jgit.annotations.Nullable;
+import javax.annotation.Nullable;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.lib.ObjectId;
@@ -167,7 +167,7 @@ class FileCandidate {
     } while (r != null);
   }
 
-  private static Region add(Region aTail, FileCandidate a, Region n) {
+  private static Region add(@Nullable Region aTail, FileCandidate a, Region n) {
     // If there is no region on the list, use only this one.
     if (aTail == null) {
       a.regionList = n;
