@@ -1,5 +1,5 @@
 /*
- * SonarQube
+ * Git Files Blame
  * Copyright (C) 2009-2023 SonarSource SA
  * mailto:info AT sonarsource DOT com
  *
