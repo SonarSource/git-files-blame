@@ -30,6 +30,7 @@ import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.RmCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.Before;
 import org.junit.Rule;
@@ -87,6 +88,19 @@ public abstract class AbstractGitIT {
     }
     add.call();
     RevCommit commit = git.commit().setCommitter("joe", "email@email.com").setMessage(msg).call();
+    return commit.getName();
+  }
+
+  protected String commit(long dateInMs, String... paths) throws GitAPIException {
+    if (paths.length > 0) {
+      AddCommand add = git.add();
+      for (String p : paths) {
+        add.addFilepattern(p);
+      }
+      add.call();
+    }
+    PersonIdent ident = new PersonIdent("joe", "email@email.com", dateInMs, 0);
+    RevCommit commit = git.commit().setCommitter(ident).setMessage("msg").call();
     return commit.getName();
   }
 
