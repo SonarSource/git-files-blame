@@ -258,21 +258,22 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    */
   @Test
   public void blame_whenThereAreMultipleNodesInQueue_thenPickInReverseCommitTimeOrder() throws IOException, GitAPIException {
+    long time = System.currentTimeMillis() - 1000;
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
-    String c1 = commit("fileA");
+    String c1 = commit(time, "fileA");
 
     String c2 = null;
     for (int i = 0; i < 100; i++) {
       createFile(baseDir, "fileC", "commit " + i);
-      c2 = commit("fileC");
+      c2 = commit(time + i, "fileC");
     }
 
     createFile(baseDir, "fileA", "line3", "line4");
-    String c3 = commit("fileA");
+    String c3 = commit(time + 200, "fileA");
 
     resetHard(c2);
     createFile(baseDir, "fileA", "line1", "line2");
-    String c4 = commit("fileA");
+    String c4 = commit(time + 300, "fileA");
 
     merge(c3);
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
