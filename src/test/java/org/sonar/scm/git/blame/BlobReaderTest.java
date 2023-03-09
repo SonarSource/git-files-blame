@@ -19,10 +19,7 @@
  */
 package org.sonar.scm.git.blame;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -43,7 +40,7 @@ public class BlobReaderTest {
   private final ObjectReader objectReader = mock(ObjectReader.class);
 
   @Test
-  public void loadText_whenObjectExists_thenReturnsNotEmptyObject() throws IOException {
+  public void loadText_whenObjectExists_shouldReturnsNotEmptyObject() throws IOException {
     byte[] rawText = {51, 52, 53, 54, 55};
     ObjectId objectId = new ObjectId(1, 2, 3, 4, 5);
     ObjectLoader objectLoader = mock(ObjectLoader.class);

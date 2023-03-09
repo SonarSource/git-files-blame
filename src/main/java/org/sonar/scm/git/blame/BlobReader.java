@@ -31,17 +31,17 @@ import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 
+import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
+import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
+
 /**
  * Reads the contents of an object from git storage (typically a file)
  */
 public class BlobReader {
   private final Repository repository;
-  private final TreeWalk treeWalk;
 
   public BlobReader(Repository repository) {
     this.repository = repository;
-    this.treeWalk = new TreeWalk(repository);
-    this.treeWalk.setRecursive(true);
   }
 
   /**
@@ -71,16 +71,18 @@ public class BlobReader {
     // we use a TreeWalk to find the file, instead of simply accessing the file in the FS, so that we can use the
     // FileTreeIterator's InputStream, which filters certain characters. For example, it removes windows lines terminators
     // in files checked out on Windows.
-    FileTreeIterator it = new FileTreeIterator(repository);
-    treeWalk.reset();
-    treeWalk.addTree(it);
+    TreeWalk treeWalk = new TreeWalk(repository);
+    treeWalk.addTree(new FileTreeIterator(repository));
+    treeWalk.setRecursive(true);
     treeWalk.setFilter(PathFilter.create(path));
     if (treeWalk.next()) {
-      try (InputStream is = it.openEntryStream()) {
-        return new RawText(is.readAllBytes());
+      FileTreeIterator iter = treeWalk.getTree(0, FileTreeIterator.class);
+      if ((iter.getEntryRawMode() & TYPE_MASK) == TYPE_FILE) {
+        try (InputStream is = iter.openEntryStream()) {
+          return new RawText(is.readAllBytes());
+        }
       }
-    } else {
-      throw new IllegalStateException("Failed to find file in the working directory: " + path);
     }
+    throw new IllegalStateException("Failed to find file in the working directory: " + path);
   }
 }
