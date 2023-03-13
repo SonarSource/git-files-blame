@@ -625,6 +625,22 @@ public class RenameDetector {
 			advanceOrCancel(pm);
 		}
 		added = left;
+
+		// TODO this is unnecessary with the patch, but until the patch is accepted by JGit, we need to read the entries from
+		// the map as it was done before, to replicated the order. Unfortunately the order will depend on the hashes and will be unstable, but it will
+		// ensure that it matches JGit's results. The next step of the algorithm (content renames) is sensitive to this order.
+		deleted = new ArrayList<>(deletedMap.size());
+		for (Object o : deletedMap.values()) {
+			if (o instanceof DiffEntry) {
+				DiffEntry e = (DiffEntry) o;
+        deleted.add(e);
+			} else {
+				List<DiffEntry> list = (List<DiffEntry>) o;
+				for (DiffEntry e : list) {
+					deleted.add(e);
+				}
+			}
+		}
 		pm.endTask();
 	}
 	/**
