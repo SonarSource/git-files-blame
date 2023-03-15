@@ -7,13 +7,12 @@ plugins {
     id 'signing'
 }
 
-group = 'org.sonarsource.git.blame'
-version = '1.0-SNAPSHOT'
-
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(11)
     }
+    withJavadocJar()
+    withSourcesJar()
 }
 
 license {
@@ -29,6 +28,10 @@ license {
     }
     includes(['**/*.java', '**/*.js', '**/*.ts', '**/*.tsx', '**/*.css'])
     excludes(['**/diff/*.java'])
+}
+
+javadoc {
+    options.encoding = 'UTF-8'
 }
 
 dependencies {
@@ -164,6 +167,7 @@ jacocoTestReport {
         html.required = false
     }
 }
+
 tasks['sonarqube'].dependsOn jacocoTestReport
 
 signing {
