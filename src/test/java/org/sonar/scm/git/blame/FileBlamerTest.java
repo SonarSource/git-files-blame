@@ -23,7 +23,8 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Date;
-import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
@@ -34,10 +35,13 @@ import org.junit.Test;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.sonar.scm.git.blame.FileBlamer.NB_FILES_THRESHOLD_ONE_TREE_WALK;
 
 public class FileBlamerTest {
 
@@ -100,4 +104,62 @@ public class FileBlamerTest {
     verify(blameResult).initialize(anyString(), anyInt());
     verify(fileTreeComparator).initialize(objectReader);
   }
+
+  @Test
+  public void initializeWithLargeAmountOfFiles_thenInitializeBlameResultAndComparator() throws IOException {
+    FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, null, null, fileReader, blameResult, false);
+
+    ObjectReader objectReader = mock(ObjectReader.class);
+
+    CommitGraphNode statefulCommit = new CommitGraphNode(revCommit, NB_FILES_THRESHOLD_ONE_TREE_WALK);
+    addFileCandidates(NB_FILES_THRESHOLD_ONE_TREE_WALK, statefulCommit);
+
+    Map<String, Integer> filesize = statefulCommit.getAllFiles().stream().collect(Collectors.toMap(FileCandidate::getPath, f -> 30));
+    when(fileReader.getFileSizes(anySet())).thenReturn(filesize);
+
+    fileBlamer.initialize(objectReader, statefulCommit);
+
+    verify(blameResult, times(NB_FILES_THRESHOLD_ONE_TREE_WALK)).initialize(anyString(), anyInt());
+    verify(fileTreeComparator).initialize(objectReader);
+  }
+
+  @Test(expected = IllegalStateException.class)
+  public void initializeWithLargeAmountOfFiles_throwsWhenError() throws IOException {
+    FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, null, null, fileReader, blameResult, false);
+
+    ObjectReader objectReader = mock(ObjectReader.class);
+    CommitGraphNode statefulCommit = new CommitGraphNode(revCommit, NB_FILES_THRESHOLD_ONE_TREE_WALK);
+    addFileCandidates(NB_FILES_THRESHOLD_ONE_TREE_WALK, statefulCommit);
+
+    when(fileReader.getFileSizes(anySet())).thenThrow(new IOException());
+
+    fileBlamer.initialize(objectReader, statefulCommit);
+  }
+
+  @Test (expected = IllegalStateException.class)
+  public void initializeWithLargeAmountOfFiles_throwsWhenFileNotInRepository() throws IOException {
+    FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, null, null, fileReader, blameResult, false);
+
+    int nbFilesInRepo = NB_FILES_THRESHOLD_ONE_TREE_WALK + 10;
+    ObjectReader objectReader = mock(ObjectReader.class);
+
+    CommitGraphNode statefulCommit = new CommitGraphNode(revCommit, nbFilesInRepo);
+    addFileCandidates(nbFilesInRepo, statefulCommit);
+
+    Map<String, Integer> filesize = statefulCommit.getAllFiles().stream().collect(Collectors.toMap(FileCandidate::getPath, f -> 30));
+    // Simulate a file is not present in the repository
+    filesize.keySet().removeAll(filesize.keySet().stream().limit(1).collect(Collectors.toSet()));
+    when(fileReader.getFileSizes(anySet())).thenReturn(filesize);
+
+    fileBlamer.initialize(objectReader, statefulCommit);
+  }
+
+  private static void addFileCandidates(int numberOfFiles, CommitGraphNode statefulCommit) {
+
+    for (int i = 0; i < numberOfFiles; i++) {
+      FileCandidate fileCandidate = new FileCandidate("path" + i, "path" + i, mock(ObjectId.class));
+      statefulCommit.addFile(fileCandidate);
+    }
+  }
+
 }

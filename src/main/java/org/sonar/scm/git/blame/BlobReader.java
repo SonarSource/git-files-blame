@@ -21,6 +21,9 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -84,5 +87,23 @@ public class BlobReader {
       }
     }
     throw new IllegalStateException("Failed to find file in the working directory: " + path);
+  }
+
+  Map<String, Integer> getFileSizes(Set<String> files) throws IOException {
+    Map<String, Integer> result = new HashMap<>();
+    TreeWalk treeWalk = new TreeWalk(repository);
+    treeWalk.addTree(new FileTreeIterator(repository));
+    treeWalk.setRecursive(true);
+
+    while (treeWalk.next()) {
+      FileTreeIterator iter = treeWalk.getTree(0, FileTreeIterator.class);
+      if (files.contains(iter.getEntryPathString()) && (iter.getEntryRawMode() & TYPE_MASK) == TYPE_FILE) {
+        try (InputStream is = iter.openEntryStream()) {
+          RawText rawText = new RawText(is.readAllBytes());
+          result.put(iter.getEntryPathString(), rawText.size());
+        }
+      }
+    }
+    return result;
   }
 }

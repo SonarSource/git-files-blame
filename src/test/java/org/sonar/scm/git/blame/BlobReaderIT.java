@@ -23,12 +23,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -55,5 +58,24 @@ public class BlobReaderIT extends AbstractGitIT {
     when(fc.getBlob()).thenReturn(ObjectId.zeroId());
     when(fc.getOriginalPath()).thenReturn("dir/file");
     assertThatNoException().isThrownBy(() -> reader.loadText(objectReader, fc));
+  }
+
+  @Test
+  public void getFileSize_noError() throws IOException {
+    Path file1 = baseDir.resolve("file1");
+    Files.write(file1, List.of("line1"));
+    Path file2 = baseDir.resolve("file2");
+    Files.write(file2, List.of("line1", "line2"));
+
+    //This file will be present in the repository, but we will not ask for its size
+    Path file3 = baseDir.resolve("file3");
+    Files.write(file3, List.of("line1", "line2", "line3"));
+
+
+    BlobReader reader = new BlobReader(git.getRepository());
+    reader.getFileSizes(Set.of("file1", "file2"));
+
+    assertThat(reader.getFileSizes(Set.of("file1", "file2"))).size().isEqualTo(2);
+    assertThat(reader.getFileSizes(Set.of("file1", "file2"))).containsOnly(entry("file1", 1), entry("file2", 2));
   }
 }
