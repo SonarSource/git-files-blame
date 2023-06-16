@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -46,6 +47,8 @@ import org.sonar.scm.git.blame.FileTreeComparator.DiffFile;
 import static java.util.Objects.requireNonNull;
 
 public class FileBlamer {
+  static final int NB_FILES_THRESHOLD_ONE_TREE_WALK = 50;
+
   private final ExecutorService executor;
   private final BlobReader fileReader;
   private final DiffAlgorithm diffAlgorithm;
@@ -71,12 +74,40 @@ public class FileBlamer {
    */
   public void initialize(ObjectReader objectReader, GraphNode commit) {
     this.objectReader = objectReader;
+    if (commit.getAllFiles().size() < NB_FILES_THRESHOLD_ONE_TREE_WALK) {
+      initializeForSmallFileSet(objectReader, commit);
+    } else {
+      // When we have more than NB_FILES_THRESHOLD_ONE_TREE_WALK we use this implementation which walks only once the entire tree
+      initializeForLargeFileSet(objectReader, commit);
+    }
+  }
+
+  private void initializeForSmallFileSet(ObjectReader objectReader, GraphNode commit) {
     for (FileCandidate fileCandidate : commit.getAllFiles()) {
       RawText rawText = fileReader.loadText(objectReader, fileCandidate);
       fileCandidate.setRegionList(new Region(0, 0, rawText.size()));
       blameResult.initialize(fileCandidate.getPath(), rawText.size());
     }
     fileTreeComparator.initialize(objectReader);
+  }
+
+  private void initializeForLargeFileSet(ObjectReader objectReader, GraphNode commit) {
+
+    Set<String> filesToCheck = commit.getAllFiles().stream().map(FileCandidate::getPath).collect(Collectors.toSet());
+    try {
+      Map<String, Integer> fileSizes = fileReader.getFileSizes(filesToCheck);
+      for (FileCandidate fileCandidate : commit.getAllFiles()) {
+        Integer fileSize = fileSizes.get(fileCandidate.getPath());
+        if (fileSize == null) {
+          throw new IllegalStateException("Failed to find file in the working directory: " + fileCandidate.getPath());
+        }
+        fileCandidate.setRegionList(new Region(0, 0, fileSize));
+        blameResult.initialize(fileCandidate.getPath(), fileSize);
+      }
+      fileTreeComparator.initialize(objectReader);
+    } catch (IOException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   /**
