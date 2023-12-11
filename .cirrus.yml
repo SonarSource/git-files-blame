@@ -15,9 +15,6 @@ env:
   ORG_GRADLE_PROJECT_signingPassword: VAULT[development/kv/data/sign data.passphrase]
   ORG_GRADLE_PROJECT_signingKeyId: VAULT[development/kv/data/sign data.key_id]
 
-  GCF_ACCESS_TOKEN: VAULT[development/kv/data/promote data.token]
-  PROMOTE_URL: VAULT[development/kv/data/promote data.url]
-
   BURGR_URL: VAULT[development/kv/data/burgr data.url]
   BURGR_USERNAME: VAULT[development/kv/data/burgr data.cirrus_username]
   BURGR_PASSWORD: VAULT[development/kv/data/burgr data.cirrus_password]
