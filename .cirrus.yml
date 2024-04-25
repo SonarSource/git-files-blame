@@ -73,3 +73,39 @@ promote_task:
       --status it-passed \
       "${CIRRUS_REPO_NAME}" "${BUILD_NUMBER}" sonarsource-public-builds
     burgr-notify-promotion
+
+mend: &MEND
+  timeout_in: 30m
+  eks_container:
+    <<: *BUILD_TEMPLATE
+    dockerfile: .cirrus/Dockerfile-mend
+
+  env:
+    WS_APIKEY: VAULT[development/kv/data/mend data.apikey]
+    WS_WSS_URL: VAULT[development/kv/data/mend data.url]
+    WS_USERKEY: VAULT[development/kv/data/mend data.userKey]
+    # No need to clone the full history.
+    # Depth of 1 is not enough because it would fail the build in case of consecutive pushes
+    # (example of error: "Hard resetting to c968ecaf7a1942dacecd78480b3751ac74d53c33...Failed to force reset to c968ecaf7a1942dacecd78480b3751ac74d53c33: object not found!")
+    CIRRUS_CLONE_DEPTH: 50
+  allow_failures: $CIRRUS_CRON != "nightly"
+  always:
+    ws_artifacts:
+      path: "whitesource/**/*"
+
+mend_scan_task:
+  only_if:  $CIRRUS_BRANCH == "master"
+  <<: *MEND
+  mend_script:
+    - source cirrus-env BUILD # to set the environment variable BUILD_NUMBER
+    - PROJECT_VERSION='NO-VERSION'
+    - source ws_scan.sh
+
+mend_scan_manually_triggered_task:
+  only_if:  $CIRRUS_BRANCH != "master"
+  trigger_type: manual
+  <<: *MEND
+  mend_script:
+    - source cirrus-env BUILD # to set the environment variable BUILD_NUMBER
+    - PROJECT_VERSION='MANUALLY_TRIGGERED'
+    - source ws_scan.sh
