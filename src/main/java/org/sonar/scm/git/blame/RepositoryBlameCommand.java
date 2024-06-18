@@ -20,6 +20,8 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
@@ -46,6 +48,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
   private Set<String> filePaths = null;
   private boolean multithreading = false;
   private BiConsumer<Integer, String> progressCallBack;
+  private Map<String, String> filePathContentMap = Collections.emptyMap();
 
   public RepositoryBlameCommand(Repository repo) {
     super(repo);
@@ -104,12 +107,22 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     return this;
   }
 
+  /**
+   * If set, given content will be used instead of reading from the disk.
+   *
+   * @param filePathContentMap File content map.
+   */
+  public RepositoryBlameCommand setFilePathContentMap(Map<String, String> filePathContentMap) {
+    this.filePathContentMap = filePathContentMap;
+    return this;
+  }
+
   @Override
   public BlameResult call() throws GitAPIException {
     BlameResult blameResult = new BlameResult();
 
     try {
-      BlobReader blobReader = new BlobReader(repo);
+      BlobReader blobReader = new BlobReader(repo, filePathContentMap);
       FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(new RenameDetector(repo));
       FileTreeComparator fileTreeComparator = new FileTreeComparator(repo, filteredRenameDetector);
       FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, diffAlgorithm, textComparator, blobReader, blameResult, multithreading);

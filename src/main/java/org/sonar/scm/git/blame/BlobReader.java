@@ -21,6 +21,8 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -42,9 +44,15 @@ import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
  */
 public class BlobReader {
   private final Repository repository;
+  private final Map<String, String> fileContents;
 
   public BlobReader(Repository repository) {
+    this(repository, Collections.emptyMap());
+  }
+
+  public BlobReader(Repository repository, Map<String, String> fileContents) {
     this.repository = repository;
+    this.fileContents = fileContents;
   }
 
   /**
@@ -81,12 +89,22 @@ public class BlobReader {
     if (treeWalk.next()) {
       FileTreeIterator iter = treeWalk.getTree(0, FileTreeIterator.class);
       if ((iter.getEntryRawMode() & TYPE_MASK) == TYPE_FILE) {
-        try (InputStream is = iter.openEntryStream()) {
-          return new RawText(is.readAllBytes());
+        String fileContent = fileContents.get(path);
+        if (fileContent != null) {
+          //use the given content
+          return new RawText(fileContent.getBytes(StandardCharsets.UTF_8));
         }
+        //read from disk
+        return getRawTextFromFile(iter);
       }
     }
     throw new IllegalStateException("Failed to find file in the working directory: " + path);
+  }
+
+  private static RawText getRawTextFromFile(FileTreeIterator iter) throws IOException {
+    try (InputStream is = iter.openEntryStream()) {
+      return new RawText(is.readAllBytes());
+    }
   }
 
   Map<String, Integer> getFileSizes(Set<String> files) throws IOException {
