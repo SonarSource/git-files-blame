@@ -21,9 +21,12 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
+import javax.annotation.Nullable;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -34,6 +37,7 @@ import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 
+import static java.util.Optional.ofNullable;
 import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
 import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
 
@@ -42,9 +46,15 @@ import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
  */
 public class BlobReader {
   private final Repository repository;
+  private final UnaryOperator<String> fileContentProvider;
 
   public BlobReader(Repository repository) {
+    this(repository, null);
+  }
+
+  public BlobReader(Repository repository, @Nullable UnaryOperator<String> fileContentProvider) {
     this.repository = repository;
+    this.fileContentProvider = fileContentProvider;
   }
 
   /**
@@ -64,12 +74,6 @@ public class BlobReader {
     }
   }
 
-  private static RawText loadText(ObjectReader objectReader, ObjectId objectId) throws IOException {
-    // No support for git Large File Storage (LFS). See implementation in Candidate#loadText
-    ObjectLoader open = objectReader.open(objectId, Constants.OBJ_BLOB);
-    return new RawText(open.getCachedBytes(Integer.MAX_VALUE));
-  }
-
   private RawText loadText(String path) throws IOException {
     // we use a TreeWalk to find the file, instead of simply accessing the file in the FS, so that we can use the
     // FileTreeIterator's InputStream, which filters certain characters. For example, it removes windows lines terminators
@@ -81,12 +85,38 @@ public class BlobReader {
     if (treeWalk.next()) {
       FileTreeIterator iter = treeWalk.getTree(0, FileTreeIterator.class);
       if ((iter.getEntryRawMode() & TYPE_MASK) == TYPE_FILE) {
-        try (InputStream is = iter.openEntryStream()) {
-          return new RawText(is.readAllBytes());
-        }
+        return loadText(path, iter);
       }
     }
     throw new IllegalStateException("Failed to find file in the working directory: " + path);
+  }
+
+  private static RawText loadText(ObjectReader objectReader, ObjectId objectId) throws IOException {
+    // No support for git Large File Storage (LFS). See implementation in Candidate#loadText
+    ObjectLoader open = objectReader.open(objectId, Constants.OBJ_BLOB);
+    return new RawText(open.getCachedBytes(Integer.MAX_VALUE));
+  }
+
+  private RawText loadText(String path, FileTreeIterator iter) throws IOException {
+    String fileContent = getFileContent(path);
+    if (fileContent != null) {
+      //use the given content
+      return new RawText(fileContent.getBytes(StandardCharsets.UTF_8));
+    }
+    //read from disk
+    return loadTextFromFile(iter);
+  }
+
+  private String getFileContent(String path) {
+    return ofNullable(fileContentProvider)
+      .map(fcp -> fcp.apply(path))
+      .orElse(null);
+  }
+
+  private static RawText loadTextFromFile(FileTreeIterator iter) throws IOException {
+    try (InputStream is = iter.openEntryStream()) {
+      return new RawText(is.readAllBytes());
+    }
   }
 
   Map<String, Integer> getFileSizes(Set<String> files) throws IOException {

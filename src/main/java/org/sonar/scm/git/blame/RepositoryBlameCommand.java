@@ -22,6 +22,7 @@ package org.sonar.scm.git.blame;
 import java.io.IOException;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.UnaryOperator;
 import javax.annotation.Nullable;
 import org.eclipse.jgit.api.GitCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -46,6 +47,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
   private Set<String> filePaths = null;
   private boolean multithreading = false;
   private BiConsumer<Integer, String> progressCallBack;
+  private UnaryOperator<String> fileContentProvider = null;
 
   public RepositoryBlameCommand(Repository repo) {
     super(repo);
@@ -104,12 +106,22 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     return this;
   }
 
+  /**
+   * If set, given contents will be used instead of reading related files from the disk.
+   *
+   * @param fileContentProvider Function to provide the contents for given paths. Expects null for unprovided file paths
+   */
+  public RepositoryBlameCommand setFileContentProvider(UnaryOperator<String> fileContentProvider) {
+    this.fileContentProvider = fileContentProvider;
+    return this;
+  }
+
   @Override
   public BlameResult call() throws GitAPIException {
     BlameResult blameResult = new BlameResult();
 
     try {
-      BlobReader blobReader = new BlobReader(repo);
+      BlobReader blobReader = new BlobReader(repo, fileContentProvider);
       FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(new RenameDetector(repo));
       FileTreeComparator fileTreeComparator = new FileTreeComparator(repo, filteredRenameDetector);
       FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, diffAlgorithm, textComparator, blobReader, blameResult, multithreading);

@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.eclipse.jgit.api.BlameCommand;
@@ -490,6 +491,22 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
     assertThat(result.getFileBlames()).extracting(FileBlame::getPath).containsOnly("fileA");
     assertAllBlameCommits(result, c1);
+  }
+
+  @Test
+  public void blame_whenContentGiven_thenLinesHaveNullBlame() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1");
+    String c1 = commit("fileA");
+    String unsavedContent = String.join(System.lineSeparator(), "line1", "newLine") + System.lineSeparator();
+    UnaryOperator<String> fileAContentProvider = filePath -> "fileA".equals(filePath) ? unsavedContent : null;
+
+    BlameResult result = blame
+      .setFilePaths(Set.of("fileA"))
+      .setFileContentProvider(fileAContentProvider)
+      .call();
+
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(tuple("fileA", new String[]{c1, null}));
   }
 
   private static void assertAllBlameCommits(BlameResult result, String expectedCommit) {
