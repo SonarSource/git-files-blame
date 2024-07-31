@@ -15,13 +15,7 @@ env:
   ORG_GRADLE_PROJECT_signingPassword: VAULT[development/kv/data/sign data.passphrase]
   ORG_GRADLE_PROJECT_signingKeyId: VAULT[development/kv/data/sign data.key_id]
 
-  BURGR_URL: VAULT[development/kv/data/burgr data.url]
-  BURGR_USERNAME: VAULT[development/kv/data/burgr data.cirrus_username]
-  BURGR_PASSWORD: VAULT[development/kv/data/burgr data.cirrus_password]
-
   ### Project variables
-  ARTIFACTS: org.sonarsource:git-files-blame:jar
-
   CIRRUS_SHELL: bash
 
 only_sonarsource_qa: &ONLY_SONARSOURCE_QA
@@ -43,6 +37,8 @@ build_task:
     SONAR_HOST_URL: VAULT[development/kv/data/next data.url]
     #allow deployment of pull request artifacts to repox
     DEPLOY_PULL_REQUEST: true
+    # Fetch all commit history so that Sonar has exact blame information for issue auto-assignment
+    CIRRUS_CLONE_DEPTH: "0"
   gradle_cache:
     folder: ~/.gradle/caches
   script:
@@ -61,15 +57,10 @@ promote_task:
   <<: *ONLY_SONARSOURCE_QA
   eks_container:
     <<: *CONTAINER_DEFINITION
-    cpu: 0.5
-    memory: 500M
+    cpu: 1
+    memory: 2G
   env:
     ARTIFACTORY_PROMOTE_ACCESS_TOKEN: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-promoter access_token]
+    GITHUB_TOKEN: VAULT[development/github/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-promotion token]
   script: |
-    source cirrus-env PROMOTE
-    jfrog rt bpr \
-      --url "${ARTIFACTORY_URL}" \
-      --access-token "${ARTIFACTORY_PROMOTE_ACCESS_TOKEN}" \
-      --status it-passed \
-      "${CIRRUS_REPO_NAME}" "${BUILD_NUMBER}" sonarsource-public-builds
-    burgr-notify-promotion
+    cirrus_promote_gradle
