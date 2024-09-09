@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.junit.Assert;
@@ -34,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.sonar.scm.git.GitUtils.createBareRepository;
 
 public class BlobReaderIT extends AbstractGitIT {
   @Test
@@ -78,4 +80,14 @@ public class BlobReaderIT extends AbstractGitIT {
     assertThat(reader.getFileSizes(Set.of("file1", "file2"))).size().isEqualTo(2);
     assertThat(reader.getFileSizes(Set.of("file1", "file2"))).containsOnly(entry("file1", 1), entry("file2", 2));
   }
+
+  @Test
+  public void bareRepository() throws IOException, GitAPIException {
+    baseDir = createNewTempFolder();
+    git = createBareRepository(baseDir);
+
+    BlobReader reader = new BlobReader(git.getRepository());
+    assertThat(reader.getFileSizes(Set.of("newfile.txt"))).size().isEqualTo(0);
+  }
+
 }

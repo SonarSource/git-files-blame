@@ -19,11 +19,13 @@
  */
 package org.sonar.scm.git;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 
@@ -31,6 +33,23 @@ public class GitUtils {
   public static Git createRepository(Path worktree) throws IOException {
     Repository repo = FileRepositoryBuilder.create(worktree.resolve(".git").toFile());
     repo.create();
+    return new Git(repo);
+  }
+
+  public static Git createBareRepository(Path worktree) throws IOException, GitAPIException {
+    var bareRepo = worktree.resolve("bare").resolve("repo.git").toFile();
+    Repository repo = FileRepositoryBuilder.create(bareRepo);
+    repo.create(true);
+    Git git = Git.cloneRepository()
+      .setURI(bareRepo.toURI().toString())
+      .setDirectory(worktree.resolve("cloned").toFile())
+      .call();
+    File newFile = new File(worktree.toFile(), "newfile.txt");
+    if (newFile.createNewFile()) {
+     git.add().addFilepattern("newfile.txt").call();
+      git.commit().setMessage("Initial commit").call();
+      git.push().call();
+    }
     return new Git(repo);
   }
 
