@@ -31,7 +31,9 @@ import org.junit.Assume;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.Mockito.mock;
+import static org.sonar.scm.git.GitUtils.createBareRepository;
 import static org.sonar.scm.git.GitUtils.createFile;
 
 public class GraphNodeFactoryIT extends AbstractGitIT {
@@ -65,6 +67,17 @@ public class GraphNodeFactoryIT extends AbstractGitIT {
 
     assertThat(commit.getAllPaths()).containsOnly("fileA", "fileB");
     assertThat(commit.getParentCommit(0)).isEqualTo(parent);
+  }
+
+  @Test
+  public void create_for_bare_repository() throws IOException, GitAPIException {
+    baseDir = createNewTempFolder();
+    git = createBareRepository(baseDir);
+
+    GraphNodeFactory underTest = new GraphNodeFactory(git.getRepository(), null);
+    TreeWalk treeWalk = new TreeWalk(git.getRepository().newObjectReader());
+    RevCommit parent = mock(RevCommit.class);
+    assertThatNoException().isThrownBy(() -> underTest.createForWorkingDir(treeWalk, parent));
   }
 
   private RevCommit getHead() throws IOException {

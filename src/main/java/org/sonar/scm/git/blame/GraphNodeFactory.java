@@ -34,6 +34,7 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 
 import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
 import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
+import static org.sonar.scm.git.blame.GitUtils.addTreeToTreeWalk;
 
 public class GraphNodeFactory {
   private final Repository repository;
@@ -75,7 +76,7 @@ public class GraphNodeFactory {
 
     treeWalk.setRecursive(true);
     treeWalk.reset();
-    treeWalk.addTree(new FileTreeIterator(repository));
+    addTreeToTreeWalk(treeWalk, repository);
 
     while (treeWalk.next()) {
       if (filePathsToBlame != null && !filePathsToBlame.contains(treeWalk.getPathString())) {

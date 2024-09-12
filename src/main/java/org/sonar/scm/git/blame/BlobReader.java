@@ -40,6 +40,7 @@ import org.eclipse.jgit.treewalk.filter.PathFilter;
 import static java.util.Optional.ofNullable;
 import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
 import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
+import static org.sonar.scm.git.blame.GitUtils.addTreeToTreeWalk;
 
 /**
  * Reads the contents of an object from git storage (typically a file)
@@ -79,7 +80,7 @@ public class BlobReader {
     // FileTreeIterator's InputStream, which filters certain characters. For example, it removes windows lines terminators
     // in files checked out on Windows.
     TreeWalk treeWalk = new TreeWalk(repository);
-    treeWalk.addTree(new FileTreeIterator(repository));
+    addTreeToTreeWalk(treeWalk, repository);
     treeWalk.setRecursive(true);
     treeWalk.setFilter(PathFilter.create(path));
     if (treeWalk.next()) {
@@ -122,7 +123,7 @@ public class BlobReader {
   Map<String, Integer> getFileSizes(Set<String> files) throws IOException {
     Map<String, Integer> result = new HashMap<>();
     TreeWalk treeWalk = new TreeWalk(repository);
-    treeWalk.addTree(new FileTreeIterator(repository));
+    addTreeToTreeWalk(treeWalk, repository);
     treeWalk.setRecursive(true);
 
     while (treeWalk.next()) {
