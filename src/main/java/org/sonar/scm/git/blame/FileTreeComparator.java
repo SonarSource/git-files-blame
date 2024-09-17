@@ -75,7 +75,9 @@ public class FileTreeComparator {
     List<DiffFile> matchedFiles = new ArrayList<>();
     treeWalk.reset();
     treeWalk.addTree(commit.getTree());
-    treeWalk.addTree(new FileTreeIterator(repository));
+    if (!repository.isBare()) {
+      treeWalk.addTree(new FileTreeIterator(repository));
+    }
     treeWalk.setFilter(TreeFilter.ALL);
 
     while (treeWalk.next()) {
