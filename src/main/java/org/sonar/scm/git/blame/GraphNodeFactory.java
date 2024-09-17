@@ -75,7 +75,11 @@ public class GraphNodeFactory {
 
     treeWalk.setRecursive(true);
     treeWalk.reset();
-    treeWalk.addTree(new FileTreeIterator(repository));
+    if (repository.isBare()) {
+      treeWalk.addTree(parentCommit.getTree().getId());
+    } else {
+      treeWalk.addTree(new FileTreeIterator(repository));
+    }
 
     while (treeWalk.next()) {
       if (filePathsToBlame != null && !filePathsToBlame.contains(treeWalk.getPathString())) {
