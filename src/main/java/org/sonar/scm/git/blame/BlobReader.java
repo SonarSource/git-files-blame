@@ -33,6 +33,9 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
@@ -78,39 +81,57 @@ public class BlobReader {
     // we use a TreeWalk to find the file, instead of simply accessing the file in the FS, so that we can use the
     // FileTreeIterator's InputStream, which filters certain characters. For example, it removes windows lines terminators
     // in files checked out on Windows.
-    TreeWalk treeWalk = new TreeWalk(repository);
-    treeWalk.addTree(new FileTreeIterator(repository));
-    treeWalk.setRecursive(true);
-    treeWalk.setFilter(PathFilter.create(path));
-    if (treeWalk.next()) {
-      FileTreeIterator iter = treeWalk.getTree(0, FileTreeIterator.class);
-      if ((iter.getEntryRawMode() & TYPE_MASK) == TYPE_FILE) {
-        return loadText(path, iter);
+
+    try (var treeWalk = new TreeWalk(repository)) {
+      prepareTreeWalk(treeWalk);
+      treeWalk.setFilter(PathFilter.create(path));
+
+      if (treeWalk.next()) {
+        var iter = treeWalk.getTree(0, AbstractTreeIterator.class);
+        if ((iter.getEntryRawMode() & TYPE_MASK) == TYPE_FILE) {
+          return loadText(path, treeWalk, iter);
+        }
       }
     }
     throw new IllegalStateException("Failed to find file in the working directory: " + path);
+  }
+
+  private void prepareTreeWalk(TreeWalk treeWalk) throws IOException {
+    treeWalk.setRecursive(true);
+
+    if (repository.isBare()) {
+      // Use RevWalk to find the commit and get the tree
+      try (RevWalk revWalk = new RevWalk(repository)) {
+        var headId = repository.resolve(Constants.HEAD);
+        RevCommit commit = revWalk.parseCommit(headId);
+        treeWalk.addTree(commit.getTree().getId());
+      }
+    } else {
+      treeWalk.addTree(new FileTreeIterator(repository));
+    }
+  }
+
+  private RawText loadText(String path, TreeWalk treeWalk, AbstractTreeIterator iter) throws IOException {
+    return ofNullable(fileContentProvider)
+      .map(fcp -> fcp.apply(path))
+      //use the given content
+      .map(fileContent -> new RawText(fileContent.getBytes(StandardCharsets.UTF_8)))
+      //read from repo
+      .orElse(loadTextFromRepo(treeWalk, iter));
+  }
+
+  private RawText loadTextFromRepo(TreeWalk treeWalk, AbstractTreeIterator iter) throws IOException {
+    if (repository.isBare()) {
+      var loader = repository.open(treeWalk.getObjectId(0));
+      return new RawText(loader.getBytes());
+    }
+    return loadTextFromFile((FileTreeIterator) iter);
   }
 
   private static RawText loadText(ObjectReader objectReader, ObjectId objectId) throws IOException {
     // No support for git Large File Storage (LFS). See implementation in Candidate#loadText
     ObjectLoader open = objectReader.open(objectId, Constants.OBJ_BLOB);
     return new RawText(open.getCachedBytes(Integer.MAX_VALUE));
-  }
-
-  private RawText loadText(String path, FileTreeIterator iter) throws IOException {
-    String fileContent = getFileContent(path);
-    if (fileContent != null) {
-      //use the given content
-      return new RawText(fileContent.getBytes(StandardCharsets.UTF_8));
-    }
-    //read from disk
-    return loadTextFromFile(iter);
-  }
-
-  private String getFileContent(String path) {
-    return ofNullable(fileContentProvider)
-      .map(fcp -> fcp.apply(path))
-      .orElse(null);
   }
 
   private static RawText loadTextFromFile(FileTreeIterator iter) throws IOException {
@@ -121,19 +142,17 @@ public class BlobReader {
 
   Map<String, Integer> getFileSizes(Set<String> files) throws IOException {
     Map<String, Integer> result = new HashMap<>();
-    TreeWalk treeWalk = new TreeWalk(repository);
-    treeWalk.addTree(new FileTreeIterator(repository));
-    treeWalk.setRecursive(true);
-
-    while (treeWalk.next()) {
-      FileTreeIterator iter = treeWalk.getTree(0, FileTreeIterator.class);
-      if (files.contains(iter.getEntryPathString()) && (iter.getEntryRawMode() & TYPE_MASK) == TYPE_FILE) {
-        try (InputStream is = iter.openEntryStream()) {
-          RawText rawText = new RawText(is.readAllBytes());
+    try (var treeWalk = new TreeWalk(repository)) {
+      prepareTreeWalk(treeWalk);
+      while (treeWalk.next()) {
+        AbstractTreeIterator iter = treeWalk.getTree(0, AbstractTreeIterator.class);
+        if (files.contains(iter.getEntryPathString()) && (iter.getEntryRawMode() & TYPE_MASK) == TYPE_FILE) {
+          var rawText = loadTextFromRepo(treeWalk, iter);
           result.put(iter.getEntryPathString(), rawText.size());
         }
       }
     }
+
     return result;
   }
 }
