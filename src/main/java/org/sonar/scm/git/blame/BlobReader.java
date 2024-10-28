@@ -30,10 +30,8 @@ import javax.annotation.Nullable;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
@@ -103,7 +101,7 @@ public class BlobReader {
       // Use RevWalk to find the commit and get the tree
       try (RevWalk revWalk = new RevWalk(repository)) {
         var headId = repository.resolve(Constants.HEAD);
-        RevCommit commit = revWalk.parseCommit(headId);
+        var commit = revWalk.parseCommit(headId);
         treeWalk.addTree(commit.getTree().getId());
       }
     } else {
@@ -130,7 +128,7 @@ public class BlobReader {
 
   private static RawText loadText(ObjectReader objectReader, ObjectId objectId) throws IOException {
     // No support for git Large File Storage (LFS). See implementation in Candidate#loadText
-    ObjectLoader open = objectReader.open(objectId, Constants.OBJ_BLOB);
+    var open = objectReader.open(objectId, Constants.OBJ_BLOB);
     return new RawText(open.getCachedBytes(Integer.MAX_VALUE));
   }
 
@@ -145,7 +143,7 @@ public class BlobReader {
     try (var treeWalk = new TreeWalk(repository)) {
       prepareTreeWalk(treeWalk);
       while (treeWalk.next()) {
-        AbstractTreeIterator iter = treeWalk.getTree(0, AbstractTreeIterator.class);
+        var iter = treeWalk.getTree(0, AbstractTreeIterator.class);
         if (files.contains(iter.getEntryPathString()) && (iter.getEntryRawMode() & TYPE_MASK) == TYPE_FILE) {
           var rawText = loadTextFromRepo(treeWalk, iter);
           result.put(iter.getEntryPathString(), rawText.size());

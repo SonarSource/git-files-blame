@@ -57,15 +57,15 @@ public class BlameWithBareRepoIT extends AbstractGitIT {
   @Test
   public void blame_whenRemoteRepoIsBare() throws IOException, GitAPIException {
     createFile(baseDir, "file1", "line1", "line2");
-    String c1 = commit("file1");
+    var c1 = commit("file1");
     push();
 
-    BlameResult result = bareRepoBlame.setFilePaths(Set.of("file1")).call();
+    var result = bareRepoBlame.setFilePaths(Set.of("file1")).call();
     assertThat(result.getFileBlames()).extracting(BlameResult.FileBlame::getPath, BlameResult.FileBlame::getCommitHashes)
       .containsOnly(tuple("file1", new String[]{c1, c1}));
 
     createFile(baseDir, "file1", "line1", "line2Modified");
-    String c2 = commit("file1");
+    var c2 = commit("file1");
     push();
 
     result = bareRepoBlame.setFilePaths(Set.of("file1")).call();
@@ -85,7 +85,7 @@ public class BlameWithBareRepoIT extends AbstractGitIT {
     commit("file1", "file2");
     push();
 
-    BlobReader reader = new BlobReader(bareRepoBlame.getRepository());
+    var reader = new BlobReader(bareRepoBlame.getRepository());
     reader.getFileSizes(Set.of("file1", "file2"));
 
     assertThat(reader.getFileSizes(Set.of("file1", "file2"))).size().isEqualTo(2);
