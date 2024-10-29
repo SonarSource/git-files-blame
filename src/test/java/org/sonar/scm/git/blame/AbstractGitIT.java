@@ -116,7 +116,7 @@ public abstract class AbstractGitIT {
     return commit.getName();
   }
 
-  private Path createNewTempFolder() throws IOException {
+  protected Path createNewTempFolder() throws IOException {
     // This is needed for Windows, otherwise the created File point to invalid (shortened by Windows) temp folder path
     return temp.newFolder().toPath().toRealPath(LinkOption.NOFOLLOW_LINKS);
   }
