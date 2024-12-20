@@ -9,12 +9,6 @@ env:
   ARTIFACTORY_DEPLOY_PASSWORD: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-qa-deployer access_token]
   ARTIFACTORY_DEPLOY_REPO: sonarsource-public-qa
 
-  #SONARQUBE_NEXT_TOKEN: VAULT[development/kv/data/next data.token]
-
-  ORG_GRADLE_PROJECT_signingKey: VAULT[development/kv/data/sign data.key]
-  ORG_GRADLE_PROJECT_signingPassword: VAULT[development/kv/data/sign data.passphrase]
-  ORG_GRADLE_PROJECT_signingKeyId: VAULT[development/kv/data/sign data.key_id]
-
   ### Project variables
   CIRRUS_SHELL: bash
 
@@ -37,6 +31,9 @@ build_task:
     SONAR_HOST_URL: VAULT[development/kv/data/next data.url]
     #allow deployment of pull request artifacts to repox
     DEPLOY_PULL_REQUEST: true
+    ORG_GRADLE_PROJECT_signingKey: VAULT[development/kv/data/sign data.key]
+    ORG_GRADLE_PROJECT_signingPassword: VAULT[development/kv/data/sign data.passphrase]
+    ORG_GRADLE_PROJECT_signingKeyId: VAULT[development/kv/data/sign data.key_id]
     # Fetch all commit history so that Sonar has exact blame information for issue auto-assignment
     CIRRUS_CLONE_DEPTH: "0"
   gradle_cache:
