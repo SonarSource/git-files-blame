@@ -512,7 +512,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   private static void assertAllBlameCommits(BlameResult result, String expectedCommit) {
     Collection<String> allBlameCommits = result.getFileBlames().stream()
       .flatMap(f -> Arrays.stream(f.getCommitHashes()))
-      .collect(Collectors.toList());
+      .toList();
 
     assertThat(allBlameCommits).containsOnly(expectedCommit);
   }
