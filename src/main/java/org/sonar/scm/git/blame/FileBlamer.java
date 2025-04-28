@@ -20,6 +20,7 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -119,7 +120,7 @@ public class FileBlamer {
     RevCommit commit = source.getCommit();
     String commitHash = commit != null ? commit.getName() : null;
     String authorEmail = commit != null ? commit.getAuthorIdent().getEmailAddress() : null;
-    Date commitDate = commit != null ? commit.getCommitterIdent().getWhen() : null;
+    Instant commitDate = commit != null ? commit.getCommitterIdent().getWhenAsInstant() : null;
     for (FileCandidate sourceFile : source.getAllFiles()) {
       if (sourceFile.getRegionList() != null) {
         blameResult.saveBlameDataForFile(commitHash, commitDate, authorEmail, sourceFile);

@@ -19,6 +19,7 @@
  */
 package org.sonar.scm.git.blame;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -40,7 +41,7 @@ public class BlameResult {
     fileBlameByPath.put(path, new FileBlame(path, size));
   }
 
-  public void saveBlameDataForFile(@Nullable String commitHash, @Nullable Date commitDate, @Nullable String authorEmail, FileCandidate fileCandidate) {
+  public void saveBlameDataForFile(@Nullable String commitHash, @Nullable Instant commitDate, @Nullable String authorEmail, FileCandidate fileCandidate) {
 
     Region currentRegion;
     while ((currentRegion = fileCandidate.getRegionList()) != null) {
@@ -64,13 +65,13 @@ public class BlameResult {
   public static class FileBlame {
     private final String path;
     private final String[] commitHashes;
-    private final Date[] commitDates;
+    private final Instant[] commitDates;
     private final String[] authorEmails;
 
     public FileBlame(String path, int numberLines) {
       this.path = path;
       this.commitHashes = new String[numberLines];
-      this.commitDates = new Date[numberLines];
+      this.commitDates = new Instant[numberLines];
       this.authorEmails = new String[numberLines];
     }
 
@@ -83,7 +84,7 @@ public class BlameResult {
       return commitHashes;
     }
 
-    public Date[] getCommitDates() {
+    public Instant[] getCommitDates() {
       return commitDates;
     }
 

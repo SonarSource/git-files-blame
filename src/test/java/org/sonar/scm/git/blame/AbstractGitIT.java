@@ -22,6 +22,8 @@ package org.sonar.scm.git.blame;
 import java.io.IOException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import javax.annotation.CheckForNull;
 import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.Git;
@@ -99,7 +101,7 @@ public abstract class AbstractGitIT {
       }
       add.call();
     }
-    PersonIdent ident = new PersonIdent("joe", "email@email.com", dateInMs, 0);
+    PersonIdent ident = new PersonIdent("joe", "email@email.com", Instant.ofEpochMilli(dateInMs), ZoneOffset.UTC);
     RevCommit commit = git.commit().setCommitter(ident).setAuthor(ident).setMessage("msg").call();
     return commit.getName();
   }

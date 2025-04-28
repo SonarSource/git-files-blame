@@ -114,7 +114,7 @@ public class FileTreeComparator {
       .filter(entry -> entry.getChangeType() != DiffEntry.ChangeType.DELETE)
       .filter(entry -> filePathsToInclude.contains(entry.getNewPath()))
       .map(entry -> new DiffFile(entry.getNewPath(), entry.getOldPath(), entry.getOldId().toObjectId()))
-      .collect(Collectors.toList());
+      .toList();
   }
 
   @CheckForNull

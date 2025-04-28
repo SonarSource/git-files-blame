@@ -20,6 +20,7 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Date;
@@ -45,10 +46,10 @@ import static org.sonar.scm.git.blame.FileBlamer.NB_FILES_THRESHOLD_ONE_TREE_WAL
 
 public class FileBlamerTest {
 
-  private final static Date ANY_DATE = Date.from(LocalDateTime.now().toInstant(ZoneOffset.UTC));
-  private final static Date ANOTHER_DATE = Date.from(LocalDateTime.now().minusDays(1).toInstant(ZoneOffset.UTC));
-  private final static String ANY_EMAIL = "email@email.com";
-  private final static String ANY_COMMIT_NAME = "commit-name";
+  private static final Instant ANY_DATE = LocalDateTime.now().toInstant(ZoneOffset.UTC);
+  private static final Instant ANOTHER_DATE = LocalDateTime.now().minusDays(1).toInstant(ZoneOffset.UTC);
+  private static final String ANY_EMAIL = "email@email.com";
+  private static final String ANY_COMMIT_NAME = "commit-name";
 
   private final BlameResult blameResult = mock(BlameResult.class);
   private final FileTreeComparator fileTreeComparator = mock(FileTreeComparator.class);
@@ -63,12 +64,12 @@ public class FileBlamerTest {
     PersonIdent personIdent = mock(PersonIdent.class);
     when(revCommit.getAuthorIdent()).thenReturn(personIdent);
     when(personIdent.getEmailAddress()).thenReturn(ANY_EMAIL);
-    when(personIdent.getWhen()).thenReturn(ANY_DATE);
+    when(personIdent.getWhenAsInstant()).thenReturn(ANY_DATE);
 
     PersonIdent personIdent2 = mock(PersonIdent.class);
     when(revCommit.getCommitterIdent()).thenReturn(personIdent2);
     when(personIdent2.getEmailAddress()).thenReturn("another@email.com");
-    when(personIdent2.getWhen()).thenReturn(ANOTHER_DATE);
+    when(personIdent2.getWhenAsInstant()).thenReturn(ANOTHER_DATE);
   }
 
   @Test

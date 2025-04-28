@@ -19,6 +19,7 @@
  */
 package org.sonar.scm.git.blame;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Date;
@@ -28,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class BlameResultTest {
 
-  private final static Date ANY_DATE = Date.from(LocalDateTime.now().toInstant(ZoneOffset.UTC));
+  private static final Instant ANY_DATE = LocalDateTime.now().toInstant(ZoneOffset.UTC);
 
   @Test
   public void saveBlameDataForFile_whenFileCandidateHasOneRegionWithTwoLines_thenFileBlameContainsTwoLines() {
