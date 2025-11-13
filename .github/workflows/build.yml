@@ -4,7 +4,6 @@ on:
     branches:
       - master
       - 'branch-*'
-      - GFB-24/migrates-ci-to-github-actions-fix/ao
   pull_request:
   merge_group:
   workflow_dispatch:
