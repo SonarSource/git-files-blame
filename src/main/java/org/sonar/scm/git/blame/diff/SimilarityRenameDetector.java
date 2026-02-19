@@ -176,14 +176,15 @@ class SimilarityRenameDetector {
 		// later find the best matches.
 		//
 		int mNext = 0;
-		SRC: for (int srcIdx = 0; srcIdx < srcs.size(); srcIdx++) {
+		for (int srcIdx = 0; srcIdx < srcs.size(); srcIdx++) {
 			DiffEntry srcEnt = srcs.get(srcIdx);
 			if (!isFile(srcEnt.oldMode)) {
 				pm.update(dsts.size());
 				continue;
 			}
 			SimilarityIndex s = null;
-			for (int dstIdx = 0; dstIdx < dsts.size(); dstIdx++) {
+			boolean skipSrc = false;
+			for (int dstIdx = 0; dstIdx < dsts.size() && !skipSrc; dstIdx++) {
 				if (pm.isCancelled()) {
 					throw new CanceledException(
 						JGitText.get().renameCancelled);
@@ -227,12 +228,14 @@ class SimilarityRenameDetector {
 						ObjectLoader loader = reader.open(OLD, srcEnt);
 						if (skipBinaryFiles && SimilarityIndex.isBinary(loader)) {
 							pm.update(1);
-							continue SRC;
+							skipSrc = true;
+							continue;
 						}
 						s = hash(loader);
 					} catch (TableFullException tableFull) {
 						tableOverflow = true;
-						continue SRC;
+						skipSrc = true;
+						continue;
 					}
 				}
 				SimilarityIndex d;
