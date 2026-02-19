@@ -30,7 +30,7 @@ public class SameThreadExecutorServiceTest {
     long expectedId = Thread.currentThread().getId();
     long[] threadId = new long[1];
 
-    SameThreadExecutorService.INSTANCE.execute(() -> threadId[0] = Thread.currentThread().getId());
+    new SameThreadExecutorService().execute(() -> threadId[0] = Thread.currentThread().getId());
 
     assertThat(threadId[0]).isEqualTo(expectedId);
   }
