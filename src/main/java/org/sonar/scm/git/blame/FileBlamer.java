@@ -66,7 +66,7 @@ public class FileBlamer {
     this.fileReader = fileReader;
     this.blameResult = blameResult;
     this.fileTreeComparator = fileTreeComparator;
-    this.executor = multithreading ? Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new BlameThreadFactory()) : SameThreadExecutorService.INSTANCE;
+    this.executor = multithreading ? Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new BlameThreadFactory()) : new SameThreadExecutorService();
   }
 
   /**
