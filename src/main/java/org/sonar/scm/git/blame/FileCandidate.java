@@ -88,7 +88,8 @@ class FileCandidate {
     Region aTail = null;
     Region bTail = null;
 
-    for (int eIdx = 0; eIdx < editList.size(); ) {
+    int eIdx = 0;
+    while (eIdx < editList.size()) {
       // If there are no more regions left, neither side has any more responsibility for the result. Remaining edits can
       // be safely ignored.
       if (r == null) {
