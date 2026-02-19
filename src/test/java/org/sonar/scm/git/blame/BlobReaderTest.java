@@ -26,17 +26,13 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class BlobReaderTest {
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
   private final ObjectReader objectReader = mock(ObjectReader.class);
 
   @Test
