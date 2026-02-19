@@ -340,7 +340,7 @@ class SimilarityRenameDetector {
 		// later in the table. This permits us to break ties favoring
 		// earlier names over later ones.
 		//
-		return INDEX_MASK - idx;
+		return (long) INDEX_MASK - idx;
 	}
 	private static int decodeFile(int v) {
 		return INDEX_MASK - v;
