@@ -29,8 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class FileCandidateTest {
 
-  private final static String ANY_PATH = "ANY";
-  private final static ObjectId ANY_OBJECT_ID = ObjectId.fromRaw(new int[]{1,2,3,4,5});
+  private static final String ANY_PATH = "ANY";
+  private static final ObjectId ANY_OBJECT_ID = ObjectId.fromRaw(new int[]{1,2,3,4,5});
 
   @Test
   public void takeBlame_whenNoRegionLeft_thenDontAssignAnyRegion() {
