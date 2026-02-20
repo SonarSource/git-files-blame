@@ -289,8 +289,7 @@ public class RenameDetector {
 						added.add(tmp.get(1));
 					}
 					break;
-				case COPY:
-				case RENAME:
+				case COPY, RENAME:
 				default:
 					entries.add(entry);
 			}
