@@ -147,12 +147,12 @@ public class SimilarityIndex {
 			do {
 				int c = raw[ptr++] & 0xff;
 				// Ignore CR in CRLF sequence if text
-				if (text && c == '\r' && ptr < end && raw[ptr] == '\n')
-					continue;
-				blockHashedCnt++;
-				if (c == '\n')
-					break;
-				hash = (hash << 5) + hash + c;
+				if (!(text && c == '\r' && ptr < end && raw[ptr] == '\n')) {
+					blockHashedCnt++;
+					if (c == '\n')
+						break;
+					hash = (hash << 5) + hash + c;
+				}
 			} while (ptr < end && ptr - start < 64);
 			hashedCnt += blockHashedCnt;
 			add(hash, blockHashedCnt);
