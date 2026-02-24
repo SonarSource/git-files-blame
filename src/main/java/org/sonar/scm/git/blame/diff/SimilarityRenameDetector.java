@@ -176,7 +176,7 @@ class SimilarityRenameDetector {
 		// later find the best matches.
 		//
 		int mNext = 0;
-		SRC: for (int srcIdx = 0; srcIdx < srcs.size(); srcIdx++) {
+		for (int srcIdx = 0; srcIdx < srcs.size(); srcIdx++) {
 			DiffEntry srcEnt = srcs.get(srcIdx);
 			if (!isFile(srcEnt.oldMode)) {
 				pm.update(dsts.size());
@@ -227,12 +227,12 @@ class SimilarityRenameDetector {
 						ObjectLoader loader = reader.open(OLD, srcEnt);
 						if (skipBinaryFiles && SimilarityIndex.isBinary(loader)) {
 							pm.update(1);
-							continue SRC;
+							break;
 						}
 						s = hash(loader);
 					} catch (TableFullException tableFull) {
 						tableOverflow = true;
-						continue SRC;
+						break;
 					}
 				}
 				SimilarityIndex d;
