@@ -30,10 +30,8 @@ import static java.util.Collections.emptyList;
  * A ExecutorService that executes in the calling thread. It does not create any additional threads.
  */
 public class SameThreadExecutorService extends AbstractExecutorService {
-  static final SameThreadExecutorService INSTANCE = new SameThreadExecutorService();
 
-  private SameThreadExecutorService() {
-    // private
+  SameThreadExecutorService() {
   }
 
   /**
