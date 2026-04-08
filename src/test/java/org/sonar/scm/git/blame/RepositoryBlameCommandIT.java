@@ -1,6 +1,6 @@
 /*
  * Git Files Blame
- * Copyright (C) 2009-2025 SonarSource Sàrl
+ * Copyright (C) SonarSource Sàrl
  * mailto:info AT sonarsource DOT com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.eclipse.jgit.api.BlameCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;

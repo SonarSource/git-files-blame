@@ -1,6 +1,6 @@
 /*
  * Git Files Blame
- * Copyright (C) 2009-2025 SonarSource Sàrl
+ * Copyright (C) SonarSource Sàrl
  * mailto:info AT sonarsource DOT com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,7 +22,6 @@ package org.sonar.scm.git.blame;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Date;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

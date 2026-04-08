@@ -1,6 +1,6 @@
 /*
  * Git Files Blame
- * Copyright (C) 2009-2025 SonarSource Sàrl
+ * Copyright (C) SonarSource Sàrl
  * mailto:info AT sonarsource DOT com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
