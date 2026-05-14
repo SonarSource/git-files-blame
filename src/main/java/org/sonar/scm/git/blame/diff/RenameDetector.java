@@ -289,7 +289,6 @@ public class RenameDetector {
 						added.add(tmp.get(1));
 					}
 					break;
-				case COPY, RENAME:
 				default:
 					entries.add(entry);
 			}
@@ -519,19 +518,33 @@ public class RenameDetector {
 		HashMap<AbbreviatedObjectId, Object> addedMap = populateMap(added, pm);
 		ArrayList<DiffEntry> uniqueAdds = new ArrayList<>(added.size());
 		ArrayList<List<DiffEntry>> nonUniqueAdds = new ArrayList<>();
+		categorizeAdds(addedMap, uniqueAdds, nonUniqueAdds);
+		ArrayList<DiffEntry> left = new ArrayList<>(added.size());
+		processUniqueAdds(uniqueAdds, deletedMap, left, pm);
+		processNonUniqueAdds(nonUniqueAdds, deletedMap, left, pm);
+		added = left;
+		rebuildDeletedList(deletedMap);
+		pm.endTask();
+	}
+	@SuppressWarnings("unchecked")
+	private static void categorizeAdds(HashMap<AbbreviatedObjectId, Object> addedMap,
+		ArrayList<DiffEntry> uniqueAdds, ArrayList<List<DiffEntry>> nonUniqueAdds) {
 		for (Object o : addedMap.values()) {
-			if (o instanceof DiffEntry)
-				uniqueAdds.add((DiffEntry) o);
+			if (o instanceof DiffEntry diffEntry)
+				uniqueAdds.add(diffEntry);
 			else
 				nonUniqueAdds.add((List<DiffEntry>) o);
 		}
-		ArrayList<DiffEntry> left = new ArrayList<>(added.size());
+	}
+	@SuppressWarnings("unchecked")
+	private void processUniqueAdds(ArrayList<DiffEntry> uniqueAdds,
+		HashMap<AbbreviatedObjectId, Object> deletedMap,
+		ArrayList<DiffEntry> left, ProgressMonitor pm) throws CanceledException {
 		for (DiffEntry a : uniqueAdds) {
 			Object del = deletedMap.get(a.newId);
-			if (del instanceof DiffEntry) {
+			if (del instanceof DiffEntry e) {
 				// We have one add to one delete: pair them if they are the same
 				// type
-				DiffEntry e = (DiffEntry) del;
 				if (sameType(e.oldMode, a.newMode)) {
 					matchedDeletedPaths.add(e.getOldPath());
 					entries.add(exactRename(e, a));
@@ -554,85 +567,97 @@ public class RenameDetector {
 			}
 			advanceOrCancel(pm);
 		}
+	}
+	@SuppressWarnings("unchecked")
+	private void processNonUniqueAdds(ArrayList<List<DiffEntry>> nonUniqueAdds,
+		HashMap<AbbreviatedObjectId, Object> deletedMap,
+		ArrayList<DiffEntry> left, ProgressMonitor pm) throws CanceledException {
 		for (List<DiffEntry> adds : nonUniqueAdds) {
 			Object o = deletedMap.get(adds.get(0).newId);
-			if (o instanceof DiffEntry) {
+			if (o instanceof DiffEntry d) {
 				// We have many adds to one delete: find the add with the same
 				// type and closest name to the delete, then pair them. Mark the
 				// rest as copies of the delete.
-				DiffEntry d = (DiffEntry) o;
-				DiffEntry best = bestPathMatch(d, adds);
-				if (best != null) {
-					matchedDeletedPaths.add(d.getOldPath());
-					entries.add(exactRename(d, best));
-					for (DiffEntry a : adds) {
-						if (a != best) {
-							if (sameType(d.oldMode, a.newMode)) {
-								entries.add(exactCopy(d, a));
-							} else {
-								left.add(a);
-							}
-						}
-					}
-				} else {
-					left.addAll(adds);
-				}
+				processNonUniqueAddsWithSingleDelete(d, adds, left);
 			} else if (o != null) {
 				// We have many adds to many deletes: score all the adds against
 				// all the deletes by path name, take the best matches, pair
 				// them as renames, then call the rest copies
 				List<DiffEntry> dels = (List<DiffEntry>) o;
-				long[] matrix = new long[dels.size() * adds.size()];
-				int mNext = 0;
-				for (int delIdx = 0; delIdx < dels.size(); delIdx++) {
-					String deletedName = dels.get(delIdx).oldPath;
-					for (int addIdx = 0; addIdx < adds.size(); addIdx++) {
-						String addedName = adds.get(addIdx).newPath;
-						int score = SimilarityRenameDetector.nameScore(addedName, deletedName);
-						matrix[mNext] = SimilarityRenameDetector.encode(score, delIdx, addIdx);
-						mNext++;
-						if (pm.isCancelled()) {
-							throw new CanceledException(
-								JGitText.get().renameCancelled);
-						}
-					}
-				}
-				Arrays.sort(matrix);
-				for (--mNext; mNext >= 0; mNext--) {
-					long ent = matrix[mNext];
-					int delIdx = SimilarityRenameDetector.srcFile(ent);
-					int addIdx = SimilarityRenameDetector.dstFile(ent);
-					DiffEntry d = dels.get(delIdx);
-					DiffEntry a = adds.get(addIdx);
-					if (a == null) {
-						advanceOrCancel(pm);
-						continue; // was already matched earlier
-					}
-					ChangeType type;
-					if (matchedDeletedPaths.add(d.getOldPath())) {
-						type = ChangeType.RENAME;
-					} else {
-						type = ChangeType.COPY;
-					}
-					entries.add(DiffEntry.pair(type, d, a, 100));
-					adds.set(addIdx, null); // Claim the destination was matched.
-					advanceOrCancel(pm);
-				}
+				processNonUniqueAddsWithMultipleDeletes(dels, adds, pm);
 			} else {
 				left.addAll(adds);
 			}
 			advanceOrCancel(pm);
 		}
-		added = left;
-
+	}
+	private void processNonUniqueAddsWithSingleDelete(DiffEntry d,
+		List<DiffEntry> adds, ArrayList<DiffEntry> left) {
+		DiffEntry best = bestPathMatch(d, adds);
+		if (best != null) {
+			matchedDeletedPaths.add(d.getOldPath());
+			entries.add(exactRename(d, best));
+			for (DiffEntry a : adds) {
+				if (a != best) {
+					if (sameType(d.oldMode, a.newMode)) {
+						entries.add(exactCopy(d, a));
+					} else {
+						left.add(a);
+					}
+				}
+			}
+		} else {
+			left.addAll(adds);
+		}
+	}
+	private void processNonUniqueAddsWithMultipleDeletes(List<DiffEntry> dels,
+		List<DiffEntry> adds, ProgressMonitor pm) throws CanceledException {
+		long[] matrix = new long[dels.size() * adds.size()];
+		int mNext = 0;
+		for (int delIdx = 0; delIdx < dels.size(); delIdx++) {
+			String deletedName = dels.get(delIdx).oldPath;
+			for (int addIdx = 0; addIdx < adds.size(); addIdx++) {
+				String addedName = adds.get(addIdx).newPath;
+				int score = SimilarityRenameDetector.nameScore(addedName, deletedName);
+				matrix[mNext] = SimilarityRenameDetector.encode(score, delIdx, addIdx);
+				mNext++;
+				if (pm.isCancelled()) {
+					throw new CanceledException(
+						JGitText.get().renameCancelled);
+				}
+			}
+		}
+		Arrays.sort(matrix);
+		for (--mNext; mNext >= 0; mNext--) {
+			long ent = matrix[mNext];
+			int delIdx = SimilarityRenameDetector.srcFile(ent);
+			int addIdx = SimilarityRenameDetector.dstFile(ent);
+			DiffEntry d = dels.get(delIdx);
+			DiffEntry a = adds.get(addIdx);
+			if (a == null) {
+				advanceOrCancel(pm);
+				continue; // was already matched earlier
+			}
+			ChangeType type;
+			if (matchedDeletedPaths.add(d.getOldPath())) {
+				type = ChangeType.RENAME;
+			} else {
+				type = ChangeType.COPY;
+			}
+			entries.add(DiffEntry.pair(type, d, a, 100));
+			adds.set(addIdx, null); // Claim the destination was matched.
+			advanceOrCancel(pm);
+		}
+	}
+	@SuppressWarnings("unchecked")
+	private void rebuildDeletedList(HashMap<AbbreviatedObjectId, Object> deletedMap) {
 		// TODO this is unnecessary with the patch, but until the patch is accepted by JGit, we need to read the entries from
 		// the map as it was done before, to replicated the order. Unfortunately the order will depend on the hashes and will be unstable, but it will
 		// ensure that it matches JGit's results. The next step of the algorithm (content renames) is sensitive to this order.
 		deleted = new ArrayList<>(deletedMap.size());
 		for (Object o : deletedMap.values()) {
-			if (o instanceof DiffEntry) {
-				DiffEntry e = (DiffEntry) o;
-        deleted.add(e);
+			if (o instanceof DiffEntry e) {
+				deleted.add(e);
 			} else {
 				List<DiffEntry> list = (List<DiffEntry>) o;
 				for (DiffEntry e : list) {
@@ -640,7 +665,6 @@ public class RenameDetector {
 				}
 			}
 		}
-		pm.endTask();
 	}
 	/**
 	 * Find the best match by file path for a given DiffEntry from a list of
