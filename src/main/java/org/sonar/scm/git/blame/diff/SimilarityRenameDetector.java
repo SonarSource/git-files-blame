@@ -92,6 +92,11 @@ class SimilarityRenameDetector {
 	private boolean skipBinaryFiles = false;
 	/** Set if any {@link SimilarityIndex.TableFullException} occurs. */
 	private boolean tableOverflow;
+	private long[] buildSrcSizes;
+	private long[] buildDstSizes;
+	private BitSet buildDstTooLarge;
+	private int buildMatrixCount;
+	private boolean skipToNextSrc;
 	private List<DiffEntry> out;
 	SimilarityRenameDetector(ContentSource.Pair reader, List<DiffEntry> srcs,
 		List<DiffEntry> dsts, Set<String> matchedSrcsPaths) {
@@ -168,15 +173,15 @@ class SimilarityRenameDetector {
 		// score that we need to consider. We might not need that many.
 		//
 		matrix = new long[srcs.size() * dsts.size()];
-		long[] srcSizes = new long[srcs.size()];
-		long[] dstSizes = new long[dsts.size()];
-		BitSet dstTooLarge = null;
+		buildSrcSizes = new long[srcs.size()];
+		buildDstSizes = new long[dsts.size()];
+		buildDstTooLarge = null;
 		// Consider each pair of files, if the score is above the minimum
 		// threshold we need record that scoring in the matrix so we can
 		// later find the best matches.
 		//
-		int mNext = 0;
-		SRC: for (int srcIdx = 0; srcIdx < srcs.size(); srcIdx++) {
+		buildMatrixCount = 0;
+		for (int srcIdx = 0; srcIdx < srcs.size(); srcIdx++) {
 			DiffEntry srcEnt = srcs.get(srcIdx);
 			if (!isFile(srcEnt.oldMode)) {
 				pm.update(dsts.size());
@@ -184,93 +189,96 @@ class SimilarityRenameDetector {
 			}
 			SimilarityIndex s = null;
 			for (int dstIdx = 0; dstIdx < dsts.size(); dstIdx++) {
-				if (pm.isCancelled()) {
-					throw new CanceledException(
-						JGitText.get().renameCancelled);
+				s = processDstEntry(pm, srcEnt, srcIdx, dstIdx, s);
+				if (skipToNextSrc) {
+					break;
 				}
-				DiffEntry dstEnt = dsts.get(dstIdx);
-				if (!isFile(dstEnt.newMode)) {
-					pm.update(1);
-					continue;
-				}
-				if (!RenameDetector.sameType(srcEnt.oldMode, dstEnt.newMode)) {
-					pm.update(1);
-					continue;
-				}
-				if (dstTooLarge != null && dstTooLarge.get(dstIdx)) {
-					pm.update(1);
-					continue;
-				}
-				long srcSize = srcSizes[srcIdx];
-				if (srcSize == 0) {
-					srcSize = size(OLD, srcEnt) + 1;
-					srcSizes[srcIdx] = srcSize;
-				}
-				long dstSize = dstSizes[dstIdx];
-				if (dstSize == 0) {
-					dstSize = size(NEW, dstEnt) + 1;
-					dstSizes[dstIdx] = dstSize;
-				}
-				long max = Math.max(srcSize, dstSize);
-				long min = Math.min(srcSize, dstSize);
-				if (min * 100 / max < renameScore) {
-					// Cannot possibly match, as the file sizes are so different
-					pm.update(1);
-					continue;
-				}
-				if (max > bigFileThreshold) {
-					pm.update(1);
-					continue;
-				}
-				if (s == null) {
-					try {
-						ObjectLoader loader = reader.open(OLD, srcEnt);
-						if (skipBinaryFiles && SimilarityIndex.isBinary(loader)) {
-							pm.update(1);
-							continue SRC;
-						}
-						s = hash(loader);
-					} catch (TableFullException tableFull) {
-						tableOverflow = true;
-						continue SRC;
-					}
-				}
-				SimilarityIndex d;
-				try {
-					ObjectLoader loader = reader.open(NEW, dstEnt);
-					if (skipBinaryFiles && SimilarityIndex.isBinary(loader)) {
-						pm.update(1);
-						continue;
-					}
-					d = hash(loader);
-				} catch (TableFullException tableFull) {
-					if (dstTooLarge == null)
-						dstTooLarge = new BitSet(dsts.size());
-					dstTooLarge.set(dstIdx);
-					tableOverflow = true;
-					pm.update(1);
-					continue;
-				}
-				int contentScore = s.score(d, 10000);
-				// nameScore returns a value between 0 and 100, but we want it
-				// to be in the same range as the content score. This allows it
-				// to be dropped into the pretty formula for the final score.
-				int nameScore = nameScore(srcEnt.oldPath, dstEnt.newPath) * 100;
-				int score = (contentScore * 99 + nameScore * 1) / 10000;
-				if (score < renameScore) {
-					pm.update(1);
-					continue;
-				}
-				matrix[mNext++] = encode(score, srcIdx, dstIdx);
-				pm.update(1);
 			}
 		}
 		// Sort everything in the range we populated, which might be the
 		// entire matrix, or just a smaller slice if we had some bad low
 		// scoring pairs.
 		//
-		Arrays.sort(matrix, 0, mNext);
-		return mNext;
+		Arrays.sort(matrix, 0, buildMatrixCount);
+		return buildMatrixCount;
+	}
+	private SimilarityIndex processDstEntry(ProgressMonitor pm,
+		DiffEntry srcEnt, int srcIdx, int dstIdx, SimilarityIndex s)
+		throws IOException, CanceledException {
+		skipToNextSrc = false;
+		if (pm.isCancelled()) {
+			throw new CanceledException(
+				JGitText.get().renameCancelled);
+		}
+		DiffEntry dstEnt = dsts.get(dstIdx);
+		if (!isFile(dstEnt.newMode)
+			|| !RenameDetector.sameType(srcEnt.oldMode, dstEnt.newMode)
+			|| (buildDstTooLarge != null && buildDstTooLarge.get(dstIdx))) {
+			pm.update(1);
+			return s;
+		}
+		long srcSize = buildSrcSizes[srcIdx];
+		if (srcSize == 0) {
+			srcSize = size(OLD, srcEnt) + 1;
+			buildSrcSizes[srcIdx] = srcSize;
+		}
+		long dstSize = buildDstSizes[dstIdx];
+		if (dstSize == 0) {
+			dstSize = size(NEW, dstEnt) + 1;
+			buildDstSizes[dstIdx] = dstSize;
+		}
+		long max = Math.max(srcSize, dstSize);
+		long min = Math.min(srcSize, dstSize);
+		if (min * 100 / max < renameScore
+			// Cannot possibly match, as the file sizes are so different
+			|| max > bigFileThreshold) {
+			pm.update(1);
+			return s;
+		}
+		if (s == null) {
+			try {
+				ObjectLoader loader = reader.open(OLD, srcEnt);
+				if (skipBinaryFiles && SimilarityIndex.isBinary(loader)) {
+					pm.update(1);
+					skipToNextSrc = true;
+					return s;
+				}
+				s = hash(loader);
+			} catch (TableFullException tableFull) {
+				tableOverflow = true;
+				skipToNextSrc = true;
+				return s;
+			}
+		}
+		SimilarityIndex d;
+		try {
+			ObjectLoader loader = reader.open(NEW, dstEnt);
+			if (skipBinaryFiles && SimilarityIndex.isBinary(loader)) {
+				pm.update(1);
+				return s;
+			}
+			d = hash(loader);
+		} catch (TableFullException tableFull) {
+			if (buildDstTooLarge == null) {
+				buildDstTooLarge = new BitSet(dsts.size());
+			}
+			buildDstTooLarge.set(dstIdx);
+			tableOverflow = true;
+			pm.update(1);
+			return s;
+		}
+		int contentScore = s.score(d, 10000);
+		// nameScore returns a value between 0 and 100, but we want it
+		// to be in the same range as the content score. This allows it
+		// to be dropped into the pretty formula for the final score.
+		int nameScore = nameScore(srcEnt.oldPath, dstEnt.newPath) * 100;
+		int score = (contentScore * 99 + nameScore * 1) / 10000;
+		if (score >= renameScore) {
+			matrix[buildMatrixCount] = encode(score, srcIdx, dstIdx);
+			buildMatrixCount++;
+		}
+		pm.update(1);
+		return s;
 	}
 	static int nameScore(String a, String b) {
 		int aDirLen = a.lastIndexOf('/') + 1;

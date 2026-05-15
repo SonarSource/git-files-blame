@@ -556,11 +556,10 @@ public class RenameDetector {
 		}
 		for (List<DiffEntry> adds : nonUniqueAdds) {
 			Object o = deletedMap.get(adds.get(0).newId);
-			if (o instanceof DiffEntry) {
+			if (o instanceof DiffEntry d) {
 				// We have many adds to one delete: find the add with the same
 				// type and closest name to the delete, then pair them. Mark the
 				// rest as copies of the delete.
-				DiffEntry d = (DiffEntry) o;
 				DiffEntry best = bestPathMatch(d, adds);
 				if (best != null) {
 					matchedDeletedPaths.add(d.getOldPath());
@@ -630,8 +629,7 @@ public class RenameDetector {
 		// ensure that it matches JGit's results. The next step of the algorithm (content renames) is sensitive to this order.
 		deleted = new ArrayList<>(deletedMap.size());
 		for (Object o : deletedMap.values()) {
-			if (o instanceof DiffEntry) {
-				DiffEntry e = (DiffEntry) o;
+			if (o instanceof DiffEntry e) {
         deleted.add(e);
 			} else {
 				List<DiffEntry> list = (List<DiffEntry>) o;
@@ -676,9 +674,9 @@ public class RenameDetector {
 		HashMap<AbbreviatedObjectId, Object> map = new HashMap<>();
 		for (DiffEntry de : diffEntries) {
 			Object old = map.put(id(de), de);
-			if (old instanceof DiffEntry) {
+			if (old instanceof DiffEntry oldEntry) {
 				ArrayList<DiffEntry> list = new ArrayList<>(2);
-				list.add((DiffEntry) old);
+				list.add(oldEntry);
 				list.add(de);
 				map.put(id(de), list);
 			} else if (old != null) {
