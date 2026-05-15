@@ -256,30 +256,29 @@ public class SimilarityIndex {
 		int srcKey = keyOf(srcHash[srcIdx]);
 		int dstKey = keyOf(dstHash[dstIdx]);
 
-		for (;;) {
+		while (srcIdx < srcHash.length && dstIdx < dstHash.length) {
 			if (srcKey == dstKey) {
 				common += Math.min(countOf(srcHash[srcIdx]),
 						countOf(dstHash[dstIdx]));
 
-				if (++srcIdx == srcHash.length)
-					break;
-				srcKey = keyOf(srcHash[srcIdx]);
-
-				if (++dstIdx == dstHash.length)
-					break;
-				dstKey = keyOf(dstHash[dstIdx]);
+				++srcIdx;
+				++dstIdx;
+				if (srcIdx < srcHash.length)
+					srcKey = keyOf(srcHash[srcIdx]);
+				if (dstIdx < dstHash.length)
+					dstKey = keyOf(dstHash[dstIdx]);
 
 			} else if (srcKey < dstKey) {
 				// Regions of src which do not appear in dst.
-				if (++srcIdx == srcHash.length)
-					break;
-				srcKey = keyOf(srcHash[srcIdx]);
+				++srcIdx;
+				if (srcIdx < srcHash.length)
+					srcKey = keyOf(srcHash[srcIdx]);
 
 			} else /* if (dstKey < srcKey) */{
 				// Regions of dst which do not appear in src.
-				if (++dstIdx == dstHash.length)
-					break;
-				dstKey = keyOf(dstHash[dstIdx]);
+				++dstIdx;
+				if (dstIdx < dstHash.length)
+					dstKey = keyOf(dstHash[dstIdx]);
 			}
 		}
 
