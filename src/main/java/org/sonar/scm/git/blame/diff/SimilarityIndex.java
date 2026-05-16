@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import org.eclipse.jgit.diff.RawText;
-import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectStream;
 /*
@@ -115,7 +114,7 @@ public class SimilarityIndex {
 		return RawText.isBinary(raw, raw.length, true);
 	}
 
-	void hash(ObjectLoader obj) throws MissingObjectException, IOException,
+	void hash(ObjectLoader obj) throws IOException,
 			TableFullException {
 		if (obj.isLarge()) {
 			hashLargeObject(obj);
@@ -182,12 +181,12 @@ public class SimilarityIndex {
 				n++;
 				int c = buf[ptr++] & 0xff;
 				// Ignore CR in CRLF sequence if text
-				if (text && c == '\r' && ptr < cnt && buf[ptr] == '\n')
-					continue;
-				blockHashedCnt++;
-				if (c == '\n')
-					break;
-				hash = (hash << 5) + hash + c;
+				if (!(text && c == '\r' && ptr < cnt && buf[ptr] == '\n')) {
+					blockHashedCnt++;
+					if (c == '\n')
+						break;
+					hash = (hash << 5) + hash + c;
+				}
 			} while (n < 64 && n < remaining);
 			hashedCnt += blockHashedCnt;
 			add(hash, blockHashedCnt);
