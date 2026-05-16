@@ -187,8 +187,7 @@ public abstract class ContentSource {
 				}
 
 				@Override
-				public ObjectStream openStream() throws MissingObjectException,
-						IOException {
+				public ObjectStream openStream() throws IOException {
 					long contentLength = entrySize;
 					InputStream in = ptr.openEntryStream();
 					in = new BufferedInputStream(in);
