@@ -175,31 +175,35 @@ public class DiffEntry {
 			if (treeFilterMarker != null)
 				entry.treeFilterMarks = treeFilterMarker.getMarks(walk);
 
-			if (entry.oldMode == FileMode.MISSING) {
-				entry.oldPath = DiffEntry.DEV_NULL;
-				entry.changeType = ChangeType.ADD;
-				r.add(entry);
-
-			} else if (entry.newMode == FileMode.MISSING) {
-				entry.newPath = DiffEntry.DEV_NULL;
-				entry.changeType = ChangeType.DELETE;
-				r.add(entry);
-
-			} else if (!entry.oldId.equals(entry.newId)) {
-				entry.changeType = ChangeType.MODIFY;
-				if (RenameDetector.sameType(entry.oldMode, entry.newMode))
-					r.add(entry);
-				else
-					r.addAll(breakModify(entry));
-			} else if (entry.oldMode != entry.newMode) {
-				entry.changeType = ChangeType.MODIFY;
-				r.add(entry);
-			}
+			classifyEntry(entry, r);
 
 			if (includeTrees && walk.isSubtree())
 				walk.enterSubtree();
 		}
 		return r;
+	}
+
+	private static void classifyEntry(DiffEntry entry, List<DiffEntry> r) {
+		if (entry.oldMode == FileMode.MISSING) {
+			entry.oldPath = DiffEntry.DEV_NULL;
+			entry.changeType = ChangeType.ADD;
+			r.add(entry);
+
+		} else if (entry.newMode == FileMode.MISSING) {
+			entry.newPath = DiffEntry.DEV_NULL;
+			entry.changeType = ChangeType.DELETE;
+			r.add(entry);
+
+		} else if (!entry.oldId.equals(entry.newId)) {
+			entry.changeType = ChangeType.MODIFY;
+			if (RenameDetector.sameType(entry.oldMode, entry.newMode))
+				r.add(entry);
+			else
+				r.addAll(breakModify(entry));
+		} else if (entry.oldMode != entry.newMode) {
+			entry.changeType = ChangeType.MODIFY;
+			r.add(entry);
+		}
 	}
 
 	static DiffEntry add(String path, AnyObjectId id) {

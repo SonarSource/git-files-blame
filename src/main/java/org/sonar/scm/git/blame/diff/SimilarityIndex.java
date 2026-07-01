@@ -174,9 +174,7 @@ public class SimilarityIndex {
 			do {
 				if (ptr == cnt) {
 					ptr = 0;
-					cnt = in.read(buf, 0, buf.length);
-					if (cnt <= 0)
-						throw new EOFException();
+					cnt = refillBuffer(in, buf);
 				}
 
 				n++;
@@ -193,6 +191,13 @@ public class SimilarityIndex {
 			add(hash, blockHashedCnt);
 			remaining -= n;
 		}
+	}
+
+	private static int refillBuffer(InputStream in, byte[] buf) throws IOException {
+		int cnt = in.read(buf, 0, buf.length);
+		if (cnt <= 0)
+			throw new EOFException();
+		return cnt;
 	}
 
 	/**
@@ -249,37 +254,23 @@ public class SimilarityIndex {
 
 	private static long common(long[] srcHash, int srcIdx, //
 			long[] dstHash, int dstIdx) {
-		if (srcIdx == srcHash.length || dstIdx == dstHash.length)
-			return 0;
-
 		long common = 0;
-		int srcKey = keyOf(srcHash[srcIdx]);
-		int dstKey = keyOf(dstHash[dstIdx]);
 
-		for (;;) {
+		while (srcIdx < srcHash.length && dstIdx < dstHash.length) {
+			int srcKey = keyOf(srcHash[srcIdx]);
+			int dstKey = keyOf(dstHash[dstIdx]);
+
 			if (srcKey == dstKey) {
 				common += Math.min(countOf(srcHash[srcIdx]),
 						countOf(dstHash[dstIdx]));
-
-				if (++srcIdx == srcHash.length)
-					break;
-				srcKey = keyOf(srcHash[srcIdx]);
-
-				if (++dstIdx == dstHash.length)
-					break;
-				dstKey = keyOf(dstHash[dstIdx]);
-
+				srcIdx++;
+				dstIdx++;
 			} else if (srcKey < dstKey) {
 				// Regions of src which do not appear in dst.
-				if (++srcIdx == srcHash.length)
-					break;
-				srcKey = keyOf(srcHash[srcIdx]);
-
+				srcIdx++;
 			} else /* if (dstKey < srcKey) */{
 				// Regions of dst which do not appear in src.
-				if (++dstIdx == dstHash.length)
-					break;
-				dstKey = keyOf(dstHash[dstIdx]);
+				dstIdx++;
 			}
 		}
 
