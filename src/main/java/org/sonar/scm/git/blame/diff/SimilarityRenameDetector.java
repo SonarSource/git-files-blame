@@ -275,31 +275,36 @@ class SimilarityRenameDetector {
 	static int nameScore(String a, String b) {
 		int aDirLen = a.lastIndexOf('/') + 1;
 		int bDirLen = b.lastIndexOf('/') + 1;
-		int dirMin = Math.min(aDirLen, bDirLen);
 		int dirMax = Math.max(aDirLen, bDirLen);
-		final int dirScoreLtr;
-		final int dirScoreRtl;
+		int dirScoreSum;
 		if (dirMax == 0) {
-			dirScoreLtr = 100;
-			dirScoreRtl = 100;
+			dirScoreSum = 200;
 		} else {
-			int dirSim = 0;
-			for (; dirSim < dirMin; dirSim++) {
-				if (a.charAt(dirSim) != b.charAt(dirSim))
-					break;
-			}
-			dirScoreLtr = (dirSim * 100) / dirMax;
-			if (dirScoreLtr == 100) {
-				dirScoreRtl = 100;
-			} else {
-				for (dirSim = 0; dirSim < dirMin; dirSim++) {
-					if (a.charAt(aDirLen - 1 - dirSim) != b.charAt(bDirLen - 1
-						- dirSim))
-						break;
-				}
-				dirScoreRtl = (dirSim * 100) / dirMax;
-			}
+			dirScoreSum = dirScore(a, b, aDirLen, bDirLen, dirMax);
 		}
+		int fileScore = fileScore(a, b, aDirLen, bDirLen);
+		return ((dirScoreSum * 25) + (fileScore * 50)) / 100;
+	}
+	private static int dirScore(String a, String b, int aDirLen, int bDirLen, int dirMax) {
+		int dirMin = Math.min(aDirLen, bDirLen);
+		int dirSim = 0;
+		for (; dirSim < dirMin; dirSim++) {
+			if (a.charAt(dirSim) != b.charAt(dirSim))
+				break;
+		}
+		int dirScoreLtr = (dirSim * 100) / dirMax;
+		if (dirScoreLtr == 100) {
+			return dirScoreLtr + 100;
+		}
+		for (dirSim = 0; dirSim < dirMin; dirSim++) {
+			if (a.charAt(aDirLen - 1 - dirSim) != b.charAt(bDirLen - 1
+				- dirSim))
+				break;
+		}
+		int dirScoreRtl = (dirSim * 100) / dirMax;
+		return dirScoreLtr + dirScoreRtl;
+	}
+	private static int fileScore(String a, String b, int aDirLen, int bDirLen) {
 		int fileMin = Math.min(a.length() - aDirLen, b.length() - bDirLen);
 		int fileMax = Math.max(a.length() - aDirLen, b.length() - bDirLen);
 		int fileSim = 0;
@@ -308,8 +313,7 @@ class SimilarityRenameDetector {
 				- fileSim))
 				break;
 		}
-		int fileScore = (fileSim * 100) / fileMax;
-		return (((dirScoreLtr + dirScoreRtl) * 25) + (fileScore * 50)) / 100;
+		return (fileSim * 100) / fileMax;
 	}
 	private SimilarityIndex hash(ObjectLoader objectLoader)
 		throws IOException, TableFullException {
