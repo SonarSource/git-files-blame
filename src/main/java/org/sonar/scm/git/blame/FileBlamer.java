@@ -162,16 +162,7 @@ public class FileBlamer {
     }
 
     // Detect unmodified files with RENAME or COPY. They have the exact same BLOB but different paths
-    for (int i = 0; i < parentCommits.size(); i++) {
-      for (DiffFile diffFile : fileTreeDiffs.get(i)) {
-        Collection<FileCandidate> fileCandidates = child.getFilesByPath(diffFile.getNewPath());
-        for (FileCandidate f : fileCandidates) {
-          if (f.getBlob().equals(diffFile.getOldObjectId())) {
-            moveFileToParent(parentStatefulCommits.get(i), f, diffFile.getOldPath());
-          }
-        }
-      }
-    }
+    moveMatchingFilesToParents(parentStatefulCommits, child, fileTreeDiffs);
 
     // try to match regions with parents, using the file tree diffs that we already computed
     for (int i = 0; i < parentStatefulCommits.size(); i++) {
@@ -211,6 +202,19 @@ public class FileBlamer {
     }
 
     waitForTasks(parent, tasks);
+  }
+
+  private static void moveMatchingFilesToParents(List<GraphNode> parentStatefulCommits, GraphNode child, List<List<DiffFile>> fileTreeDiffs) {
+    for (int i = 0; i < parentStatefulCommits.size(); i++) {
+      for (DiffFile diffFile : fileTreeDiffs.get(i)) {
+        Collection<FileCandidate> fileCandidates = child.getFilesByPath(diffFile.getNewPath());
+        for (FileCandidate f : fileCandidates) {
+          if (f.getBlob().equals(diffFile.getOldObjectId())) {
+            moveFileToParent(parentStatefulCommits.get(i), f, diffFile.getOldPath());
+          }
+        }
+      }
+    }
   }
 
   /**
