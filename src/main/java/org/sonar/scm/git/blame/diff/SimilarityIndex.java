@@ -275,7 +275,7 @@ public class SimilarityIndex {
 					break;
 				srcKey = keyOf(srcHash[srcIdx]);
 
-			} else /* if (dstKey < srcKey) */{
+			} else /*  */{
 				// Regions of dst which do not appear in src.
 				if (++dstIdx == dstHash.length)
 					break;

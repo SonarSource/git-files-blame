@@ -88,7 +88,9 @@ class FileCandidate {
     Region aTail = null;
     Region bTail = null;
 
-    for (int eIdx = 0; eIdx < editList.size(); ) {
+    int eIdx = 0;
+    int editListSize = editList.size();
+    while (eIdx < editListSize) {
       // If there are no more regions left, neither side has any more responsibility for the result. Remaining edits can
       // be safely ignored.
       if (r == null) {
@@ -100,51 +102,46 @@ class FileCandidate {
       // Edit ends before the next candidate region. Skip the edit.
       if (e.getEndB() <= r.sourceStart) {
         eIdx++;
-        continue;
-      }
-
-      // Next candidate region starts before the edit. Assign some of the blame onto A, but possibly split and also on B.
-      if (r.sourceStart < e.getBeginB()) {
+      } else if (r.sourceStart < e.getBeginB() && r.length <= e.getBeginB() - r.sourceStart) {
+        // Next candidate region starts before the edit and fits entirely before it. Pass the blame for this region onto A.
         int d = e.getBeginB() - r.sourceStart;
-        if (r.length <= d) {
-          // Pass the blame for this region onto A.
-          Region next = r.next;
-          r.sourceStart = e.getBeginA() - d;
-          aTail = add(aTail, a, r);
-          r = next;
-          continue;
-        }
-
-        // Split the region and assign some to A, some to B.
-        aTail = add(aTail, a, r.splitFirst(e.getBeginA() - d, d));
-        r.slideAndShrink(d);
-      }
-
-      // At this point e.getBeginB() <= r.sourceStart.
-
-      // An empty edit on the B side isn't relevant to this split, as it does not overlap any candidate region.
-      if (e.getLengthB() == 0) {
-        eIdx++;
-        continue;
-      }
-
-      // If the region ends before the edit, blame on B.
-      int rEnd = r.sourceStart + r.length;
-      if (rEnd <= e.getEndB()) {
         Region next = r.next;
-        bTail = add(bTail, b, r);
+        r.sourceStart = e.getBeginA() - d;
+        aTail = add(aTail, a, r);
         r = next;
-        if (rEnd == e.getEndB()) {
-          eIdx++;
+      } else {
+        // Next candidate region starts before the edit. Assign some of the blame onto A, and the rest on B.
+        if (r.sourceStart < e.getBeginB()) {
+          int d = e.getBeginB() - r.sourceStart;
+          // Split the region and assign some to A, some to B.
+          aTail = add(aTail, a, r.splitFirst(e.getBeginA() - d, d));
+          r.slideAndShrink(d);
         }
-        continue;
-      }
 
-      // This region extends beyond the edit. Blame the first half of the region on B, and process the rest after.
-      int len = e.getEndB() - r.sourceStart;
-      bTail = add(bTail, b, r.splitFirst(r.sourceStart, len));
-      r.slideAndShrink(len);
-      eIdx++;
+        // At this point e.getBeginB() <= r.sourceStart.
+
+        // An empty edit on the B side isn't relevant to this split, as it does not overlap any candidate region.
+        if (e.getLengthB() == 0) {
+          eIdx++;
+        } else {
+          // If the region ends before the edit, blame on B.
+          int rEnd = r.sourceStart + r.length;
+          if (rEnd <= e.getEndB()) {
+            Region next = r.next;
+            bTail = add(bTail, b, r);
+            r = next;
+            if (rEnd == e.getEndB()) {
+              eIdx++;
+            }
+          } else {
+            // This region extends beyond the edit. Blame the first half of the region on B, and process the rest after.
+            int len = e.getEndB() - r.sourceStart;
+            bTail = add(bTail, b, r.splitFirst(r.sourceStart, len));
+            r.slideAndShrink(len);
+            eIdx++;
+          }
+        }
+      }
     }
 
     if (r == null) {
