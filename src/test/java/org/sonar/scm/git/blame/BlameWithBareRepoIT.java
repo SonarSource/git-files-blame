@@ -24,6 +24,7 @@ import java.net.URISyntaxException;
 import java.util.Set;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.transport.URIish;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,7 +41,7 @@ public class BlameWithBareRepoIT extends AbstractGitIT {
   @Before
   public void prepareForBare() throws IOException, GitAPIException, URISyntaxException {
     var bareDir = createNewTempFolder();
-    var bareGit = Git.init().setBare(true).setDirectory(bareDir.toFile()).call();
+    var bareGit = Git.init().setBare(true).setInitialBranch(Constants.MASTER).setDirectory(bareDir.toFile()).call();
 
     git.remoteAdd()
       .setName("origin")
