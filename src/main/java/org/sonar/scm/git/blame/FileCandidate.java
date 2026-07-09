@@ -23,6 +23,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.EditList;
+import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.ObjectId;
 
 /**
@@ -46,6 +47,13 @@ class FileCandidate {
    * making it simple to merge-join with the sorted EditList during blame assignment.
    */
   private Region regionList;
+
+  /**
+   * Content of {@link #sourceBlob}, set when it was already read while this candidate was diffed as the
+   * "parent" side of an edit. Reused instead of re-reading the same blob when this candidate later becomes
+   * the "source" side of a diff against its own parent, since a candidate is diffed as the source at most once.
+   */
+  private RawText cachedText;
 
   FileCandidate(String originalPath, String path, ObjectId blob) {
     this(originalPath, path, blob, null);
@@ -77,6 +85,15 @@ class FileCandidate {
 
   public void setRegionList(@Nullable Region regionList) {
     this.regionList = regionList;
+  }
+
+  @CheckForNull
+  RawText getCachedText() {
+    return cachedText;
+  }
+
+  void setCachedText(@Nullable RawText cachedText) {
+    this.cachedText = cachedText;
   }
 
   void takeBlame(EditList editList, FileCandidate child) {
