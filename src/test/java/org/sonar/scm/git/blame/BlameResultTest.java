@@ -22,16 +22,16 @@ package org.sonar.scm.git.blame;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class BlameResultTest {
+class BlameResultTest {
 
   private static final Instant ANY_DATE = LocalDateTime.now().toInstant(ZoneOffset.UTC);
 
   @Test
-  public void saveBlameDataForFile_whenFileCandidateHasOneRegionWithTwoLines_thenFileBlameContainsTwoLines() {
+  void saveBlameDataForFile_whenFileCandidateHasOneRegionWithTwoLines_thenFileBlameContainsTwoLines() {
     BlameResult blameResult = new BlameResult();
 
     FileCandidate fileCandidate = new FileCandidate("path", "path", null);
@@ -45,7 +45,7 @@ public class BlameResultTest {
   }
 
   @Test
-  public void saveBlameDataForFile_whenFileCandidateHasTwoRegionsWithOneLineEach_thenFileBlameContainsTwoLines() {
+  void saveBlameDataForFile_whenFileCandidateHasTwoRegionsWithOneLineEach_thenFileBlameContainsTwoLines() {
     BlameResult blameResult = new BlameResult();
 
     FileCandidate fileCandidate = new FileCandidate("path", "path", null);

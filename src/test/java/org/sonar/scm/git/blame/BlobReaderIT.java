@@ -26,29 +26,29 @@ import java.util.List;
 import java.util.Set;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BlobReaderIT extends AbstractGitIT {
+class BlobReaderIT extends AbstractGitIT {
   @Test
-  public void loadText_whenWorkDirectoryAndFileDoesntExist_shouldThrowISE() {
+  void loadText_whenWorkDirectoryAndFileDoesntExist_shouldThrowISE() {
     BlobReader reader = new BlobReader(git.getRepository());
     ObjectReader objectReader = git.getRepository().newObjectReader();
     FileCandidate fc = mock(FileCandidate.class);
     when(fc.getBlob()).thenReturn(ObjectId.zeroId());
     when(fc.getOriginalPath()).thenReturn("invalid");
 
-    Assert.assertThrows(IllegalStateException.class, () -> reader.loadText(objectReader, fc));
+    assertThatThrownBy(() -> reader.loadText(objectReader, fc)).isInstanceOf(IllegalStateException.class);
   }
 
   @Test
-  public void loadText_whenWorkDirectoryHasDirectories_shouldIgnoreDirs() throws IOException {
+  void loadText_whenWorkDirectoryHasDirectories_shouldIgnoreDirs() throws IOException {
     Path fileInDir = baseDir.resolve("dir/file");
     Files.createDirectories(fileInDir.getParent());
     Files.write(fileInDir, List.of("line1"));
@@ -61,7 +61,7 @@ public class BlobReaderIT extends AbstractGitIT {
   }
 
   @Test
-  public void getFileSize_noError() throws IOException {
+  void getFileSize_noError() throws IOException {
     Path file1 = baseDir.resolve("file1");
     Files.write(file1, List.of("line1"));
     Path file2 = baseDir.resolve("file2");

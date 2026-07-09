@@ -27,8 +27,8 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.sonar.scm.git.blame.diff.DiffEntry;
 import org.sonar.scm.git.blame.diff.RenameDetector;
 
@@ -36,16 +36,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.sonar.scm.git.GitUtils.createFile;
 
-public class FilteredRenameDetectorIT extends AbstractGitIT {
+class FilteredRenameDetectorIT extends AbstractGitIT {
   private FilteredRenameDetector filteredRenameDetector;
 
-  @Before
-  public void before() {
+  @BeforeEach
+  void before() {
     filteredRenameDetector = new FilteredRenameDetector(new RenameDetector(git.getRepository()));
   }
 
   @Test
-  public void detectRenames_exact_rename_and_similar_rename_from_same_file() throws IOException, GitAPIException {
+  void detectRenames_exact_rename_and_similar_rename_from_same_file() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2");
     String c1 = commit("fileA");
 

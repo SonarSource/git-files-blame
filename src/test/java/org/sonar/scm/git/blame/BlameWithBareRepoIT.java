@@ -26,20 +26,20 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.transport.URIish;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.sonar.scm.git.GitUtils.createFile;
 
-public class BlameWithBareRepoIT extends AbstractGitIT {
+class BlameWithBareRepoIT extends AbstractGitIT {
 
   private RepositoryBlameCommand bareRepoBlame;
 
-  @Before
-  public void prepareForBare() throws IOException, GitAPIException, URISyntaxException {
+  @BeforeEach
+  void prepareForBare() throws IOException, GitAPIException, URISyntaxException {
     var bareDir = createNewTempFolder();
     var bareGit = Git.init().setBare(true).setInitialBranch(Constants.MASTER).setDirectory(bareDir.toFile()).call();
 
@@ -56,7 +56,7 @@ public class BlameWithBareRepoIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenRemoteRepoIsBare() throws IOException, GitAPIException {
+  void blame_whenRemoteRepoIsBare() throws IOException, GitAPIException {
     createFile(baseDir, "file1", "line1", "line2");
     var c1 = commit("file1");
     push();
@@ -76,7 +76,7 @@ public class BlameWithBareRepoIT extends AbstractGitIT {
 
 
   @Test
-  public void getFileSize_noError() throws IOException, GitAPIException {
+  void getFileSize_noError() throws IOException, GitAPIException {
     createFile(baseDir, "file1", "line1");
     createFile(baseDir, "file2", "line1", "line2");
 

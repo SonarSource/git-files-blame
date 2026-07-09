@@ -26,17 +26,17 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BlobReaderTest {
+class BlobReaderTest {
   private final ObjectReader objectReader = mock(ObjectReader.class);
 
   @Test
-  public void loadText_whenObjectExists_shouldReturnsNotEmptyObject() throws IOException {
+  void loadText_whenObjectExists_shouldReturnsNotEmptyObject() throws IOException {
     byte[] rawText = {51, 52, 53, 54, 55};
     ObjectId objectId = new ObjectId(1, 2, 3, 4, 5);
     ObjectLoader objectLoader = mock(ObjectLoader.class);

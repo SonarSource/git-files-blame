@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.sonar.scm.git.blame.diff.DiffEntry;
 import org.sonar.scm.git.blame.diff.RenameDetector;
 
@@ -32,12 +32,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class FilteredRenameDetectorTest {
+class FilteredRenameDetectorTest {
   private final RenameDetector renameDetector = mock(RenameDetector.class);
   private final FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(renameDetector);
 
   @Test
-  public void detectRenames_whenChangesHaveAddsNotInPaths_thenFilterThem() throws IOException {
+  void detectRenames_whenChangesHaveAddsNotInPaths_thenFilterThem() throws IOException {
     DiffEntry addDiffEntry1 = mockedDiffEntry("pathA", DiffEntry.ChangeType.ADD);
     DiffEntry addDiffEntry2 = mockedDiffEntry("pathB", DiffEntry.ChangeType.ADD);
     Collection<DiffEntry> changes = Set.of(addDiffEntry1, addDiffEntry2);
@@ -47,7 +47,7 @@ public class FilteredRenameDetectorTest {
   }
 
   @Test
-  public void detectRenames_returns_results_of_renameDetector() throws IOException {
+  void detectRenames_returns_results_of_renameDetector() throws IOException {
     DiffEntry diffEntry1 = mockedDiffEntry("pathA", DiffEntry.ChangeType.ADD);
     DiffEntry diffEntry2 = mockedDiffEntry("pathB", DiffEntry.ChangeType.MODIFY);
     DiffEntry diffEntry3 = mockedDiffEntry("pathC", DiffEntry.ChangeType.DELETE);

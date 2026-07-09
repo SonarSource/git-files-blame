@@ -19,14 +19,14 @@
  */
 package org.sonar.scm.git.blame;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class BlameThreadFactoryTest {
+class BlameThreadFactoryTest {
 
   @Test
-  public void newThread_whenRunnableIsNotNull_thenTheThreadNameContainsGitBlame() {
+  void newThread_whenRunnableIsNotNull_thenTheThreadNameContainsGitBlame() {
     BlameThreadFactory blameThreadFactory = new BlameThreadFactory();
 
     Thread thread = blameThreadFactory.newThread(System::currentTimeMillis);

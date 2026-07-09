@@ -19,14 +19,14 @@
  */
 package org.sonar.scm.git.blame;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class SameThreadExecutorServiceTest {
+class SameThreadExecutorServiceTest {
 
   @Test
-  public void run_alwaysExecutesInTheSameThread() {
+  void run_alwaysExecutesInTheSameThread() {
     long expectedId = Thread.currentThread().getId();
     long[] threadId = new long[1];
 

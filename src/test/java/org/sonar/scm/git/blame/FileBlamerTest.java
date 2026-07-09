@@ -30,9 +30,10 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anySet;
@@ -43,7 +44,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.sonar.scm.git.blame.FileBlamer.NB_FILES_THRESHOLD_ONE_TREE_WALK;
 
-public class FileBlamerTest {
+class FileBlamerTest {
 
   private static final Instant ANY_DATE = LocalDateTime.now().toInstant(ZoneOffset.UTC);
   private static final Instant ANOTHER_DATE = LocalDateTime.now().minusDays(1).toInstant(ZoneOffset.UTC);
@@ -56,8 +57,8 @@ public class FileBlamerTest {
   private final RevCommit revCommit = mock(RevCommit.class);
   private final FileCandidate fileCandidate = mock(FileCandidate.class);
 
-  @Before
-  public void before() {
+  @BeforeEach
+  void before() {
     when(revCommit.getName()).thenReturn(ANY_COMMIT_NAME);
 
     PersonIdent personIdent = mock(PersonIdent.class);
@@ -72,7 +73,7 @@ public class FileBlamerTest {
   }
 
   @Test
-  public void saveBlameDataForFilesInCommit_whenCommitContainsFileCandidate_thenCallBlameResult() {
+  void saveBlameDataForFilesInCommit_whenCommitContainsFileCandidate_thenCallBlameResult() {
     FileBlamer fileBlamer = new FileBlamer(null, null, null, null, blameResult, false);
     when(fileCandidate.getRegionList()).thenReturn(new Region(0, 0, 2));
 
@@ -85,7 +86,7 @@ public class FileBlamerTest {
   }
 
   @Test
-  public void initialize_thenInitializeBlameResultAndComparator() {
+  void initialize_thenInitializeBlameResultAndComparator() {
     FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, null, null, fileReader, blameResult, false);
 
     ObjectReader objectReader = mock(ObjectReader.class);
@@ -106,7 +107,7 @@ public class FileBlamerTest {
   }
 
   @Test
-  public void initializeWithLargeAmountOfFiles_thenInitializeBlameResultAndComparator() throws IOException {
+  void initializeWithLargeAmountOfFiles_thenInitializeBlameResultAndComparator() throws IOException {
     FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, null, null, fileReader, blameResult, false);
 
     ObjectReader objectReader = mock(ObjectReader.class);
@@ -123,8 +124,8 @@ public class FileBlamerTest {
     verify(fileTreeComparator).initialize(objectReader);
   }
 
-  @Test(expected = IllegalStateException.class)
-  public void initializeWithLargeAmountOfFiles_throwsWhenError() throws IOException {
+  @Test
+  void initializeWithLargeAmountOfFiles_throwsWhenError() throws IOException {
     FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, null, null, fileReader, blameResult, false);
 
     ObjectReader objectReader = mock(ObjectReader.class);
@@ -133,11 +134,11 @@ public class FileBlamerTest {
 
     when(fileReader.getFileSizes(anySet())).thenThrow(new IOException());
 
-    fileBlamer.initialize(objectReader, statefulCommit);
+    assertThatThrownBy(() -> fileBlamer.initialize(objectReader, statefulCommit)).isInstanceOf(IllegalStateException.class);
   }
 
-  @Test (expected = IllegalStateException.class)
-  public void initializeWithLargeAmountOfFiles_throwsWhenFileNotInRepository() throws IOException {
+  @Test
+  void initializeWithLargeAmountOfFiles_throwsWhenFileNotInRepository() throws IOException {
     FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, null, null, fileReader, blameResult, false);
 
     int nbFilesInRepo = NB_FILES_THRESHOLD_ONE_TREE_WALK + 10;
@@ -151,7 +152,7 @@ public class FileBlamerTest {
     filesize.keySet().removeAll(filesize.keySet().stream().limit(1).collect(Collectors.toSet()));
     when(fileReader.getFileSizes(anySet())).thenReturn(filesize);
 
-    fileBlamer.initialize(objectReader, statefulCommit);
+    assertThatThrownBy(() -> fileBlamer.initialize(objectReader, statefulCommit)).isInstanceOf(IllegalStateException.class);
   }
 
   private static void addFileCandidates(int numberOfFiles, CommitGraphNode statefulCommit) {

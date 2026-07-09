@@ -24,19 +24,19 @@ import java.util.Set;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class GraphNodeFactoryTest {
+class GraphNodeFactoryTest {
   private final Repository repo = mock(Repository.class);
   private final RevCommit revCommit = mock(RevCommit.class);
 
   @Test
-  public void create_whenCommitNotIncludedInPathsToBlame_thenReturnNoFiles() throws IOException {
+  void create_whenCommitNotIncludedInPathsToBlame_thenReturnNoFiles() throws IOException {
     GraphNodeFactory statefulCommitFactory = new GraphNodeFactory(repo, Set.of("path"));
 
     TreeWalk treeWalk = mock(TreeWalk.class);
@@ -49,7 +49,7 @@ public class GraphNodeFactoryTest {
   }
 
   @Test
-  public void create_whenCommitIncludedInPathsToBlame_thenReturnOneFile() throws IOException {
+  void create_whenCommitIncludedInPathsToBlame_thenReturnOneFile() throws IOException {
     GraphNodeFactory statefulCommitFactory = new GraphNodeFactory(repo, Set.of("path"));
 
     TreeWalk treeWalk = mock(TreeWalk.class);
@@ -63,7 +63,7 @@ public class GraphNodeFactoryTest {
   }
 
   @Test
-  public void create_whenNoFilesToBlame_thenReturnOneFile() throws IOException {
+  void create_whenNoFilesToBlame_thenReturnOneFile() throws IOException {
     GraphNodeFactory statefulCommitFactory = new GraphNodeFactory(repo, null);
 
     TreeWalk treeWalk = mock(TreeWalk.class);

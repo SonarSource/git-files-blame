@@ -21,41 +21,41 @@ package org.sonar.scm.git.blame;
 
 import java.util.List;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class WorkDirGraphNodeTest {
+class WorkDirGraphNodeTest {
   private final RevCommit commit = mock(RevCommit.class);
   private WorkDirGraphNode underTest;
 
-  @Before
-  public void setup() {
+  @BeforeEach
+  void setup() {
     FileCandidate fc = mock(FileCandidate.class);
     when(fc.getPath()).thenReturn("path");
     underTest = new WorkDirGraphNode(commit, List.of(fc));
   }
 
   @Test
-  public void getCommit_returns_null() {
+  void getCommit_returns_null() {
     assertThat(underTest.getCommit()).isNull();
   }
 
   @Test
-  public void getParentCount_returns_one() {
+  void getParentCount_returns_one() {
     assertThat(underTest.getParentCount()).isOne();
   }
 
   @Test
-  public void getParent_returns_parent_commit() {
+  void getParent_returns_parent_commit() {
     assertThat(underTest.getParentCommit(0)).isEqualTo(commit);
   }
 
   @Test
-  public void getTime_returns_int_max() {
+  void getTime_returns_int_max() {
     assertThat(underTest.getTime()).isEqualTo(Integer.MAX_VALUE);
   }
 

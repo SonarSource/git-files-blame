@@ -19,14 +19,14 @@
  */
 package org.sonar.scm.git.blame;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class RegionTest {
+class RegionTest {
 
   @Test
-  public void splitFirst_whenCalled_thenDontChangeResultStart() {
+  void splitFirst_whenCalled_thenDontChangeResultStart() {
     Region region = new Region(0, 1, 2);
 
     Region newRegion = region.splitFirst(3, 4);
@@ -36,7 +36,7 @@ public class RegionTest {
   }
 
   @Test
-  public void slideAndShrink_whenDifferenceIsPositiveInteger_thenReduceLength() {
+  void slideAndShrink_whenDifferenceIsPositiveInteger_thenReduceLength() {
     Region region = new Region(10, 10, 20);
 
     region.slideAndShrink(5);
@@ -46,7 +46,7 @@ public class RegionTest {
   }
 
   @Test
-  public void slideAndShrink_whenDifferenceIsZero_thenDontChangeTheObject() {
+  void slideAndShrink_whenDifferenceIsZero_thenDontChangeTheObject() {
     Region region = new Region(10, 10, 20);
 
     region.slideAndShrink(0);

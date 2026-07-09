@@ -27,18 +27,18 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.sonar.scm.git.GitUtils.createFile;
 
-public class GraphNodeFactoryIT extends AbstractGitIT {
+class GraphNodeFactoryIT extends AbstractGitIT {
 
   @Test
-  public void create_ignores_symlinks() throws IOException, GitAPIException {
-    Assume.assumeFalse(SystemUtils.IS_OS_WINDOWS);
+  void create_ignores_symlinks() throws IOException, GitAPIException {
+    Assumptions.assumeFalse(SystemUtils.IS_OS_WINDOWS);
     String fileName = "fileA";
     String symlinkName = "symlink";
 
@@ -54,7 +54,7 @@ public class GraphNodeFactoryIT extends AbstractGitIT {
   }
 
   @Test
-  public void create_for_working_directory() throws IOException {
+  void create_for_working_directory() throws IOException {
     createFile(baseDir, "fileA", "line1");
     createFile(baseDir, "fileB", "line2");
 
