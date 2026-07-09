@@ -148,9 +148,14 @@ public final class SyntheticRepoGenerator {
     String[] names = new String[numFiles];
     int digits = Integer.toString(Math.max(numFiles - 1, 1)).length();
     for (int i = 0; i < numFiles; i++) {
-      names[i] = String.format("file%0" + digits + "d.txt", i);
+      names[i] = "file" + zeroPad(i, digits) + ".txt";
     }
     return names;
+  }
+
+  private static String zeroPad(int value, int digits) {
+    String raw = Integer.toString(value);
+    return "0".repeat(Math.max(0, digits - raw.length())) + raw;
   }
 
   private static String[] initialLines(String path, int linesPerFile) {
