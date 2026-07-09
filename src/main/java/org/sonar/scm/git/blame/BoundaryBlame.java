@@ -98,7 +98,11 @@ public final class BoundaryBlame {
     return runs;
   }
 
-  ObjectId getBoundaryCommit() {
+  /**
+   * The commit this cache was captured at. Callers use this to verify it's still an ancestor of the commit
+   * being blamed before passing this cache to {@link RepositoryBlameCommand#setBoundaryBlame(BoundaryBlame)}.
+   */
+  public ObjectId getBoundaryCommit() {
     return boundaryCommit;
   }
 
