@@ -132,7 +132,7 @@ artifactory {
         repository {
             repoKey = System.getenv('ARTIFACTORY_DEPLOY_REPO')
             username = System.getenv('ARTIFACTORY_DEPLOY_USERNAME') ?: providers.gradleProperty("artifactoryUsername").orNull
-            password = System.getenv('ARTIFACTORY_DEPLOY_PASSWORD') ?: providers.gradleProperty("artifactoryPaswword").orNull
+            password = System.getenv('ARTIFACTORY_DEPLOY_PASSWORD') ?: providers.gradleProperty("artifactoryPassword").orNull
         }
         defaults {
             properties = [
