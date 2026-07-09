@@ -20,6 +20,7 @@
 package org.sonar.scm.git.blame;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -34,22 +35,21 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.sonar.scm.git.GitUtils.createRepository;
 
-public abstract class AbstractGitIT {
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+abstract class AbstractGitIT {
+  @TempDir
+  Path tempDirRoot;
 
   protected Path baseDir;
   protected Git git;
   protected RepositoryBlameCommand blame;
 
-  @Before
-  public void prepare() throws IOException {
+  @BeforeEach
+  void prepare() throws IOException {
     baseDir = createNewTempFolder();
     git = createRepository(baseDir);
     blame = new RepositoryBlameCommand(git.getRepository());
@@ -120,6 +120,6 @@ public abstract class AbstractGitIT {
 
   protected Path createNewTempFolder() throws IOException {
     // This is needed for Windows, otherwise the created File point to invalid (shortened by Windows) temp folder path
-    return temp.newFolder().toPath().toRealPath(LinkOption.NOFOLLOW_LINKS);
+    return Files.createTempDirectory(tempDirRoot, "junit").toRealPath(LinkOption.NOFOLLOW_LINKS);
   }
 }

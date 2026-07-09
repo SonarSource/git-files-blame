@@ -32,7 +32,7 @@ import org.eclipse.jgit.api.BlameCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.ConfigConstants;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,9 +42,9 @@ import static org.sonar.scm.git.GitUtils.createFile;
 import static org.sonar.scm.git.GitUtils.deleteFile;
 import static org.sonar.scm.git.GitUtils.moveFile;
 
-public class RepositoryBlameCommandIT extends AbstractGitIT {
+class RepositoryBlameCommandIT extends AbstractGitIT {
   @Test
-  public void blame_whenCommittedSymlink_thenReturnNoBlame() throws IOException, GitAPIException {
+  void blame_whenCommittedSymlink_thenReturnNoBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
     String c1 = commit("fileA");
     Path link = Files.createSymbolicLink(baseDir.resolve("fileB"), baseDir.resolve("fileA"));
@@ -58,7 +58,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenUncommittedSymlink_thenReturnNoBlame() throws IOException, GitAPIException {
+  void blame_whenUncommittedSymlink_thenReturnNoBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
     String c1 = commit("fileA");
     Path link = Files.createSymbolicLink(baseDir.resolve("fileB"), baseDir.resolve("fileA"));
@@ -71,7 +71,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenUncommittedFiles_thenReadWorkingDirWithFilteredInputStream() throws IOException, GitAPIException {
+  void blame_whenUncommittedFiles_thenReadWorkingDirWithFilteredInputStream() throws IOException, GitAPIException {
     git.getRepository().getConfig().setBoolean(ConfigConstants.CONFIG_CORE_SECTION, null, "safecrlf", true);
     git.getRepository().getConfig().setString(ConfigConstants.CONFIG_CORE_SECTION, null, "autocrlf", "input");
 
@@ -92,7 +92,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenUncommittedFiles_thenThereIsNoBlame() throws IOException, GitAPIException {
+  void blame_whenUncommittedFiles_thenThereIsNoBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
     String c1 = commit("fileA");
 
@@ -104,7 +104,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenUncommittedDeletedFiles_thenThereIsNoBlame() throws GitAPIException, IOException {
+  void blame_whenUncommittedDeletedFiles_thenThereIsNoBlame() throws GitAPIException, IOException {
     createFile(baseDir, "fileA", "line1");
     String c1 = commit("fileA");
 
@@ -116,7 +116,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenUncommittedRenamedFiles_thenThereIsNoBlame() throws IOException, GitAPIException {
+  void blame_whenUncommittedRenamedFiles_thenThereIsNoBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
     String c1 = commit("fileA");
 
@@ -129,7 +129,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenUncommittedLines_thenLinesHaveNullBlame() throws IOException, GitAPIException {
+  void blame_whenUncommittedLines_thenLinesHaveNullBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line3");
     String c1 = commit("fileA");
 
@@ -141,7 +141,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenUncommittedChangesIgnoredByTextComparator_thenHasNoEffectOnBlame() throws IOException, GitAPIException {
+  void blame_whenUncommittedChangesIgnoredByTextComparator_thenHasNoEffectOnBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2");
     String c1 = commit("fileA");
 
@@ -154,7 +154,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenFileRenamedAndFileFilterUsed_thenDetectRename() throws IOException, GitAPIException {
+  void blame_whenFileRenamedAndFileFilterUsed_thenDetectRename() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
     createFile(baseDir, "fileB", "line2");
     String c1 = commit("fileA", "fileB");
@@ -182,7 +182,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void blame_whenFileMatchesTwoParents_thenPreferParentWithSameFilenameOverParentWithSameFileContent() throws GitAPIException, IOException {
+  void blame_whenFileMatchesTwoParents_thenPreferParentWithSameFilenameOverParentWithSameFileContent() throws GitAPIException, IOException {
     String c1 = commit();
 
     createFile(baseDir, "fileA", "line1", "line2");
@@ -217,7 +217,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * In this test, all regions should be moved to c4. Line1 should not be moved to c3.
    */
   @Test
-  public void blame_whenParentHasFileWithSameContent_thenFollowThatParent() throws IOException, GitAPIException {
+  void blame_whenParentHasFileWithSameContent_thenFollowThatParent() throws IOException, GitAPIException {
     String c1 = commit();
 
     createFile(baseDir, "fileA", "line1", "line3");
@@ -257,7 +257,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * In this test, all regions should be moved to c4. Line1 should not be moved to c3.
    */
   @Test
-  public void blame_whenParentHasHasRenamedFileWithSameContent_thenFollowThatParent() throws IOException, GitAPIException {
+  void blame_whenParentHasHasRenamedFileWithSameContent_thenFollowThatParent() throws IOException, GitAPIException {
     String c1 = commit();
 
     createFile(baseDir, "fileA", "line1", "line3");
@@ -284,7 +284,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenFilterUsed_thenOnlyBlameFilesInFilter() throws IOException, GitAPIException {
+  void blame_whenFilterUsed_thenOnlyBlameFilesInFilter() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
     createFile(baseDir, "fileB", "line1");
     createFile(baseDir, "fileC", "line1");
@@ -310,7 +310,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void blame_whenThereAreMultipleNodesInQueue_thenPickInReverseCommitTimeOrder() throws IOException, GitAPIException {
+  void blame_whenThereAreMultipleNodesInQueue_thenPickInReverseCommitTimeOrder() throws IOException, GitAPIException {
     long time = 10_000;
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
     String c1 = commit(time - 1000, "fileA");
@@ -336,7 +336,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
     MutableInt processedCommits = new MutableInt(0);
     blame.setProgressCallBack((iterationNb, commitHash) -> processedCommits.increment()).call();
-    assertThat(processedCommits.getValue())
+    assertThat(processedCommits.intValue())
       .as("We shouldn't process more commits than the total of commits in the repo")
       // work dir + 4 + 5
       .isLessThan(11);
@@ -346,7 +346,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * If there are no more parents, blame the commit for all remaining regions
    */
   @Test
-  public void blame_whenInitialCommitCreatedChanges_thenBlameInitialCommit() throws GitAPIException, IOException {
+  void blame_whenInitialCommitCreatedChanges_thenBlameInitialCommit() throws GitAPIException, IOException {
     createFile(baseDir, "fileA", "line1");
     String c1 = commit("fileA");
     BlameResult result = blame.call();
@@ -363,7 +363,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void blame_whenThereIsRenameAndCopy_thenBlameOriginalFile() throws IOException, GitAPIException {
+  void blame_whenThereIsRenameAndCopy_thenBlameOriginalFile() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4", "line5", "line6", "line7");
     String c1 = commit("fileA");
 
@@ -391,7 +391,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void blame_whenFileBlameEndsInMultiplePathsWithARename_thenFinalPathMapsToMultiplePaths() throws IOException, GitAPIException {
+  void blame_whenFileBlameEndsInMultiplePathsWithARename_thenFinalPathMapsToMultiplePaths() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2");
     createFile(baseDir, "fileB", "line3", "line4");
     String c1 = commitMsg("Create fileA and fileB", ".");
@@ -431,7 +431,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void blame_whenFileBlameEndsInMultipleFiles_thenFinalPathMapsToMultiplePaths() throws IOException, GitAPIException {
+  void blame_whenFileBlameEndsInMultipleFiles_thenFinalPathMapsToMultiplePaths() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1", "line2");
     createFile(baseDir, "fileB", "line3", "line4");
     String c1 = commit(".");
@@ -470,7 +470,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
    * </pre>
    */
   @Test
-  public void blame_whenRegionsFromTwoCommitsEndInCommonParent_thenRegionsShouldBeMerged() throws GitAPIException, IOException {
+  void blame_whenRegionsFromTwoCommitsEndInCommonParent_thenRegionsShouldBeMerged() throws GitAPIException, IOException {
     createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
     String c1 = commit("fileA");
 
@@ -493,7 +493,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
   }
 
   @Test
-  public void blame_whenContentGiven_thenLinesHaveNullBlame() throws IOException, GitAPIException {
+  void blame_whenContentGiven_thenLinesHaveNullBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
     String c1 = commit("fileA");
     String unsavedContent = String.join(System.lineSeparator(), "line1", "newLine") + System.lineSeparator();

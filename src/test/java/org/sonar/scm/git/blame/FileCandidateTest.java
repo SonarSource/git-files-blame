@@ -23,17 +23,17 @@ import java.util.stream.IntStream;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.lib.ObjectId;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class FileCandidateTest {
+class FileCandidateTest {
 
   private static final String ANY_PATH = "ANY";
   private static final ObjectId ANY_OBJECT_ID = ObjectId.fromRaw(new int[]{1,2,3,4,5});
 
   @Test
-  public void takeBlame_whenNoRegionLeft_thenDontAssignAnyRegion() {
+  void takeBlame_whenNoRegionLeft_thenDontAssignAnyRegion() {
     FileCandidate child = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate parent = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
 
@@ -46,7 +46,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void takeBlame_whenEditNotInsideTheCandidateRegion_thenDontAssignAnyRegion() {
+  void takeBlame_whenEditNotInsideTheCandidateRegion_thenDontAssignAnyRegion() {
     FileCandidate child = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate parent = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     Region regionLeftToBlame = new Region(1, 0, 1);
@@ -66,7 +66,7 @@ public class FileCandidateTest {
    * 4e984bd7 (Author 2023-02-24 09:43:53 +0100 2) child commit
    */
   @Test
-  public void takeBlame_whenChildSingleLineEditAtTheEndOfFile_thenSplitBlame() {
+  void takeBlame_whenChildSingleLineEditAtTheEndOfFile_thenSplitBlame() {
     FileCandidate child = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate parent = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     child.setRegionList(new Region(0, 0, 2));
@@ -82,7 +82,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void takeBlame_whenEditExceedsRegion_thenParentsRegionShouldBeNull() {
+  void takeBlame_whenEditExceedsRegion_thenParentsRegionShouldBeNull() {
     FileCandidate child = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate parent = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     child.setRegionList(new Region(0, 0, 2));
@@ -97,7 +97,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void takeBlame_whenTwoEditsTenLinesEachInTheMiddleOfTheFile_thenChildAndParentShouldHaveTwoRegions() {
+  void takeBlame_whenTwoEditsTenLinesEachInTheMiddleOfTheFile_thenChildAndParentShouldHaveTwoRegions() {
     FileCandidate child = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate parent = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     child.setRegionList(new Region(0, 0, 100));
@@ -119,7 +119,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void takeBlame_whenManyContinuousEditsCoveringWholeFile_thenParentShouldNotHaveAnyRegionsLeft() {
+  void takeBlame_whenManyContinuousEditsCoveringWholeFile_thenParentShouldNotHaveAnyRegionsLeft() {
     FileCandidate child = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate parent = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     child.setRegionList(new Region(0, 0, 10));
@@ -134,7 +134,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void takeBlame_sequenceANotEqualToSequenceB_sourceStartInParentIsNegative() {
+  void takeBlame_sequenceANotEqualToSequenceB_sourceStartInParentIsNegative() {
     FileCandidate child = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate parent = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     child.setRegionList(new Region(0, 0, 10));
@@ -152,7 +152,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void mergeRegions_whenRegionsOverlappingAndStartAtTheSameLine_thenSecondRegionIsNull() {
+  void mergeRegions_whenRegionsOverlappingAndStartAtTheSameLine_thenSecondRegionIsNull() {
     FileCandidate first = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate second = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
 
@@ -169,7 +169,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void mergeRegions_whenNoRegions_expectException() {
+  void mergeRegions_whenNoRegions_expectException() {
     FileCandidate first = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate second = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
 
@@ -180,7 +180,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void mergeRegions_whenRegionsNotOverlappingAndStartAtTheSameLine_thenResultHasTwoRegions() {
+  void mergeRegions_whenRegionsNotOverlappingAndStartAtTheSameLine_thenResultHasTwoRegions() {
     FileCandidate first = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate second = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
 
@@ -197,7 +197,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void mergeRegions_whenRegionsAreTheSame_thenResultHasTwoRegions() {
+  void mergeRegions_whenRegionsAreTheSame_thenResultHasTwoRegions() {
     FileCandidate first = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate second = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
 
@@ -215,7 +215,7 @@ public class FileCandidateTest {
   }
 
   @Test
-  public void mergeRegions_whenOneRegionInsideAnother_thenResultHasTwoRegions() {
+  void mergeRegions_whenOneRegionInsideAnother_thenResultHasTwoRegions() {
     FileCandidate first = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
     FileCandidate second = new FileCandidate(ANY_PATH, ANY_PATH, ANY_OBJECT_ID);
 
