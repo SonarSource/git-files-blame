@@ -52,7 +52,24 @@ dependencies {
 }
 
 test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'benchmark'
+    }
+}
+
+tasks.register('benchmark', Test) {
+    group = 'verification'
+    description = 'Runs performance benchmarks against synthetic large repositories (excluded from the default test task).'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'benchmark'
+    }
+    outputs.upToDateWhen { false }
+    testLogging {
+        showStandardStreams = true
+        events 'passed', 'skipped', 'failed', 'standardOut'
+    }
 }
 
 apply plugin: 'java'
