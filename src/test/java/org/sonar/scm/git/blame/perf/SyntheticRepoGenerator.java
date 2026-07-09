@@ -36,11 +36,15 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TreeFormatter;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.treewalk.TreeWalk;
 
 /**
  * Generates a synthetic bare repository directly through JGit's low-level object database APIs (no working tree,
@@ -114,6 +118,78 @@ public final class SyntheticRepoGenerator {
       pointHeadTo(repository, parentCommit);
       return new Stats(config.numFiles(), config.linesPerFile(), config.numCommits(), parentCommit);
     }
+  }
+
+  /**
+   * Appends {@code extraCommits} more commits on top of an existing repository previously produced by {@link #generate},
+   * following the same "modify a handful of random files" pattern. Reads the current state (paths, blobs, line content)
+   * back from the repository itself rather than requiring any in-memory generation state to be kept around, so it can be
+   * used to simulate a few commits landing on top of a repository that was already blamed (and cached) in a separate run.
+   */
+  public static ObjectId appendCommits(Path bareRepoDir, Config config, int extraCommits, long seed) throws IOException {
+    Repository repository = new FileRepositoryBuilder().setGitDir(bareRepoDir.toFile()).build();
+
+    try (repository; ObjectInserter inserter = repository.newObjectInserter(); ObjectReader reader = repository.newObjectReader()) {
+      ObjectId headId = repository.resolve(Constants.HEAD);
+      RevCommit headCommit;
+      try (RevWalk revWalk = new RevWalk(reader)) {
+        headCommit = revWalk.parseCommit(headId);
+      }
+
+      List<String> paths = new ArrayList<>();
+      Map<String, String[]> linesByPath = new HashMap<>();
+      Map<String, ObjectId> blobByPath = new HashMap<>();
+      readExistingTree(reader, headCommit, paths, linesByPath, blobByPath);
+
+      Random random = new Random(seed);
+      AtomicInteger renameCounter = new AtomicInteger();
+      ObjectId parentCommit = headId;
+      Instant commitTime = Instant.ofEpochSecond(headCommit.getCommitTime()).plusSeconds(60);
+
+      for (int commitIdx = 0; commitIdx < extraCommits; commitIdx++) {
+        for (int modIdx = 0; modIdx < config.filesModifiedPerCommit(); modIdx++) {
+          String path = paths.get(random.nextInt(paths.size()));
+          rewriteRandomLine(inserter, linesByPath, blobByPath, path, random, commitIdx);
+        }
+
+        if (config.filesRenamedPerCommit() > 0 && commitIdx % config.renameBurstEveryNCommits() == 0) {
+          for (int renIdx = 0; renIdx < config.filesRenamedPerCommit(); renIdx++) {
+            renameRandomFile(inserter, paths, linesByPath, blobByPath, random, commitIdx, renameCounter);
+          }
+        }
+
+        ObjectId treeId = buildTree(inserter, paths, blobByPath);
+        PersonIdent ident = new PersonIdent("generator", "generator@example.com", commitTime, ZoneOffset.UTC);
+        parentCommit = createCommit(inserter, treeId, parentCommit, ident, "extra commit " + commitIdx);
+        commitTime = commitTime.plusSeconds(60);
+      }
+
+      inserter.flush();
+      pointHeadTo(repository, parentCommit);
+      return parentCommit;
+    }
+  }
+
+  private static void readExistingTree(ObjectReader reader, RevCommit commit, List<String> paths, Map<String, String[]> linesByPath,
+    Map<String, ObjectId> blobByPath) throws IOException {
+    try (TreeWalk treeWalk = new TreeWalk(reader)) {
+      treeWalk.addTree(commit.getTree());
+      treeWalk.setRecursive(true);
+      while (treeWalk.next()) {
+        String path = treeWalk.getPathString();
+        ObjectId blobId = treeWalk.getObjectId(0);
+        paths.add(path);
+        blobByPath.put(path, blobId);
+        linesByPath.put(path, readLines(reader, blobId));
+      }
+    }
+  }
+
+  private static String[] readLines(ObjectReader reader, ObjectId blobId) throws IOException {
+    String content = new String(reader.open(blobId).getBytes(), StandardCharsets.UTF_8);
+    String[] lines = content.split("\n", -1);
+    // insertBlob always terminates the content with a trailing '\n', which split() turns into a trailing empty element
+    return lines.length > 0 && lines[lines.length - 1].isEmpty() ? Arrays.copyOf(lines, lines.length - 1) : lines;
   }
 
   private static void rewriteRandomLine(ObjectInserter inserter, Map<String, String[]> linesByPath, Map<String, ObjectId> blobByPath, String path,
