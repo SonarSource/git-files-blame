@@ -336,7 +336,7 @@ public class RepositoryBlameCommandIT extends AbstractGitIT {
 
     MutableInt processedCommits = new MutableInt(0);
     blame.setProgressCallBack((iterationNb, commitHash) -> processedCommits.increment()).call();
-    assertThat(processedCommits.getValue())
+    assertThat(processedCommits.intValue())
       .as("We shouldn't process more commits than the total of commits in the repo")
       // work dir + 4 + 5
       .isLessThan(11);

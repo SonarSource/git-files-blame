@@ -459,7 +459,6 @@ public class DiffEntry {
 	/**
 	 * Whether the mark tree filter with the specified index matched during scan
 	 * or not, see {@link #scan(TreeWalk, boolean, TreeFilter...)}. Example:
-	 * <p>
 	 *
 	 * <pre>
 	 * TreeFilter filterA = ...;
