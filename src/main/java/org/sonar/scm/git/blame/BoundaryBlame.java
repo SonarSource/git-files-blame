@@ -240,11 +240,13 @@ public final class BoundaryBlame {
 
   /**
    * Resolves every region still unblamed on {@code candidate} against this cache, consuming its region list.
+   * Does nothing, leaving the region list untouched, if this cache has no entry for the candidate's path - the
+   * caller is expected to fall back to walking that candidate's history normally in that case.
    */
   void resolveRegions(FileCandidate candidate, BlameResult blameResult) {
     List<Run> runs = runsByPath.get(candidate.getPath());
     if (runs == null) {
-      throw new IllegalStateException("No boundary blame was captured for path '" + candidate.getPath() + "' at commit " + boundaryCommit.getName());
+      return;
     }
 
     Region region = candidate.getRegionList();

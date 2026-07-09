@@ -21,6 +21,7 @@ package org.sonar.scm.git.blame;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Set;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.junit.jupiter.api.Test;
@@ -122,9 +123,33 @@ class BoundaryBlameIT extends AbstractGitIT {
     assertIncrementalMatchesFull(boundary);
   }
 
+  @Test
+  void incrementalBlame_matchesFullBlame_whenBoundaryCacheOnlyCoversSomeFiles() throws IOException, GitAPIException {
+    createFile(baseDir, "fileA", "line1", "line2");
+    createFile(baseDir, "fileB", "other1", "other2");
+    String c1 = commit("fileA", "fileB");
+    createFile(baseDir, "fileA", "line1", "line2-v2");
+    createFile(baseDir, "fileB", "other1", "other2-v2");
+    String boundaryCommit = commit("fileA", "fileB");
+
+    // simulate a cache that was only ever populated for fileA - e.g. because a prior analysis only ended up
+    // blaming that one file - fileB has no entry at all
+    BoundaryBlame partialBoundary = captureBoundary(boundaryCommit, Set.of("fileA"));
+
+    createFile(baseDir, "fileA", "line1", "line2-v3");
+    createFile(baseDir, "fileB", "other1", "other2-v3");
+    commit("fileA", "fileB");
+
+    assertIncrementalMatchesFull(partialBoundary);
+  }
+
   private BoundaryBlame captureBoundary(String boundaryCommit) throws GitAPIException, IOException {
+    return captureBoundary(boundaryCommit, null);
+  }
+
+  private BoundaryBlame captureBoundary(String boundaryCommit, Set<String> filePaths) throws GitAPIException, IOException {
     ObjectId boundaryId = git.getRepository().resolve(boundaryCommit);
-    BlameResult blameAtBoundary = new RepositoryBlameCommand(git.getRepository()).setStartCommit(boundaryId).call();
+    BlameResult blameAtBoundary = new RepositoryBlameCommand(git.getRepository()).setStartCommit(boundaryId).setFilePaths(filePaths).call();
     BoundaryBlame captured = BoundaryBlame.capture(boundaryId, blameAtBoundary);
     return BoundaryBlame.fromByteArray(captured.toByteArray());
   }

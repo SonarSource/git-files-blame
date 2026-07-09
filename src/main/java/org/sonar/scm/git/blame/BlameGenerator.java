@@ -131,14 +131,18 @@ public class BlameGenerator {
         progressCallBack.accept(i, hash);
       }
       if (isBoundaryCommit(current)) {
-        // reached the commit a previous analysis's blame was cached at: resolve remaining regions from that
-        // cache instead of walking further into history
+        // reached the commit a previous analysis's blame was cached at: resolve whichever files this cache
+        // covers directly from it. Files it doesn't cover (e.g. it was captured before they were last touched)
+        // keep their region list untouched, so the process()/leaf branch below still walks them further back.
         fileBlamer.resolveFromBoundary(current, boundaryBlame);
-      } else if (current.getParentCount() > 0) {
-        process(current);
-      } else {
-        // no more parents, so blame all remaining regions to the current commit
-        fileBlamer.saveBlameDataForFilesInCommit(current);
+      }
+      if (hasUnresolvedFiles(current)) {
+        if (current.getParentCount() > 0) {
+          process(current);
+        } else {
+          // no more parents, so blame all remaining regions to the current commit
+          fileBlamer.saveBlameDataForFilesInCommit(current);
+        }
       }
     }
     close();
@@ -146,6 +150,10 @@ public class BlameGenerator {
 
   private boolean isBoundaryCommit(GraphNode node) {
     return boundaryBlame != null && node.getCommit() != null && node.getCommit().equals(boundaryBlame.getBoundaryCommit());
+  }
+
+  private static boolean hasUnresolvedFiles(GraphNode node) {
+    return node.getAllFiles().stream().anyMatch(f -> f.getRegionList() != null);
   }
 
   private void process(GraphNode commitCandidate) throws IOException {
