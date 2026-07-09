@@ -48,6 +48,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
   private boolean multithreading = false;
   private BiConsumer<Integer, String> progressCallBack;
   private UnaryOperator<String> fileContentProvider = null;
+  private BoundaryBlame boundaryBlame = null;
 
   public RepositoryBlameCommand(Repository repo) {
     super(repo);
@@ -116,6 +117,18 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     return this;
   }
 
+  /**
+   * If set, history traversal stops as soon as it reaches the boundary commit, and any regions still unblamed at
+   * that point are resolved from this cache instead of being blamed further back in history. Safe to set
+   * speculatively: if the boundary commit isn't an ancestor of the commit being blamed (e.g. it no longer is,
+   * after a rebase/force-push/squash since the cache was captured), traversal never reaches it, so this has no
+   * effect and blame falls back to walking full history.
+   */
+  public RepositoryBlameCommand setBoundaryBlame(@Nullable BoundaryBlame boundaryBlame) {
+    this.boundaryBlame = boundaryBlame;
+    return this;
+  }
+
   @Override
   public BlameResult call() throws GitAPIException {
     BlameResult blameResult = new BlameResult();
@@ -131,7 +144,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
       }
 
       GraphNodeFactory graphNodeFactory = new GraphNodeFactory(repo, filePaths);
-      BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, graphNodeFactory, progressCallBack);
+      BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, graphNodeFactory, progressCallBack, boundaryBlame);
       blameGenerator.generateBlame(startCommit);
     } catch (IOException e) {
       throw new IllegalStateException("Failed to blame repository files", e);

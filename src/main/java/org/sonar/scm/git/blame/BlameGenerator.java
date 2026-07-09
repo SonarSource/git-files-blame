@@ -54,13 +54,20 @@ public class BlameGenerator {
    */
   private final RevWalk revPool;
   private final BiConsumer<Integer, String> progressCallBack;
+  private final BoundaryBlame boundaryBlame;
 
   public BlameGenerator(Repository repository, FileBlamer fileBlamer, GraphNodeFactory graphNodeFactory, @Nullable BiConsumer<Integer, String> progressCallBack) {
+    this(repository, fileBlamer, graphNodeFactory, progressCallBack, null);
+  }
+
+  public BlameGenerator(Repository repository, FileBlamer fileBlamer, GraphNodeFactory graphNodeFactory, @Nullable BiConsumer<Integer, String> progressCallBack,
+    @Nullable BoundaryBlame boundaryBlame) {
     this.repository = repository;
     this.fileBlamer = fileBlamer;
     this.graphNodeFactory = graphNodeFactory;
     this.revPool = new RevWalk(repository);
     this.progressCallBack = progressCallBack;
+    this.boundaryBlame = boundaryBlame;
   }
 
   private void prepareStartCommit(@CheckForNull ObjectId startCommit) throws IOException, NoHeadException {
@@ -123,7 +130,11 @@ public class BlameGenerator {
         String hash = current.getCommit() == null ? ObjectId.zeroId().getName() : current.getCommit().getName();
         progressCallBack.accept(i, hash);
       }
-      if (current.getParentCount() > 0) {
+      if (isBoundaryCommit(current)) {
+        // reached the commit a previous analysis's blame was cached at: resolve remaining regions from that
+        // cache instead of walking further into history
+        fileBlamer.resolveFromBoundary(current, boundaryBlame);
+      } else if (current.getParentCount() > 0) {
         process(current);
       } else {
         // no more parents, so blame all remaining regions to the current commit
@@ -131,6 +142,10 @@ public class BlameGenerator {
       }
     }
     close();
+  }
+
+  private boolean isBoundaryCommit(GraphNode node) {
+    return boundaryBlame != null && node.getCommit() != null && node.getCommit().equals(boundaryBlame.getBoundaryCommit());
   }
 
   private void process(GraphNode commitCandidate) throws IOException {

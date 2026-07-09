@@ -44,16 +44,20 @@ public class BlameResult {
 
     Region currentRegion;
     while ((currentRegion = fileCandidate.getRegionList()) != null) {
-      int resLine = currentRegion.resultStart;
-      int resEnd = getResultEnd(currentRegion);
-
-      FileBlame fileBlame = fileBlameByPath.get(fileCandidate.getOriginalPath());
-      for (; resLine < resEnd; resLine++) {
-        fileBlame.commitHashes[resLine] = commitHash;
-        fileBlame.commitDates[resLine] = commitDate;
-        fileBlame.authorEmails[resLine] = authorEmail;
-      }
+      saveBlameDataForRange(fileCandidate.getOriginalPath(), currentRegion.resultStart, getResultEnd(currentRegion), commitHash, commitDate, authorEmail);
       fileCandidate.setRegionList(currentRegion.next);
+    }
+  }
+
+  /**
+   * Assigns the same attribution to every line in {@code [resultStart, resultEnd)} of the result file at {@code path}.
+   */
+  void saveBlameDataForRange(String path, int resultStart, int resultEnd, @Nullable String commitHash, @Nullable Instant commitDate, @Nullable String authorEmail) {
+    FileBlame fileBlame = fileBlameByPath.get(path);
+    for (int resLine = resultStart; resLine < resultEnd; resLine++) {
+      fileBlame.commitHashes[resLine] = commitHash;
+      fileBlame.commitDates[resLine] = commitDate;
+      fileBlame.authorEmails[resLine] = authorEmail;
     }
   }
 

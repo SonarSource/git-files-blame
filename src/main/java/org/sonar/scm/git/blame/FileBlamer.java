@@ -181,6 +181,18 @@ public class FileBlamer {
     return parentStatefulCommits;
   }
 
+  /**
+   * Resolves every file still unblamed on {@code source} directly from {@code boundary}, instead of walking into
+   * {@code source}'s parents. Only valid when {@code source} represents the exact commit {@code boundary} was captured at.
+   */
+  public void resolveFromBoundary(GraphNode source, BoundaryBlame boundary) {
+    for (FileCandidate sourceFile : source.getAllFiles()) {
+      if (sourceFile.getRegionList() != null) {
+        boundary.resolveRegions(sourceFile, blameResult);
+      }
+    }
+  }
+
   public void close() {
     executor.shutdown();
     try {
