@@ -261,7 +261,8 @@ public class FileBlamer {
     ObjectReader reader = objectReader.newReader();
 
     // source's content was already read and cached when it was diffed as the parent of its child; a candidate is
-    // only ever diffed as the source once, so the cache can be consumed here and cleared
+    // only ever diffed as the source once, so the cache can be consumed here and cleared. It may also be null if
+    // the JVM reclaimed the underlying SoftReference under memory pressure, in which case we re-read the blob.
     RawText sourceText = source.getCachedText() != null ? source.getCachedText() : fileReader.loadText(reader, source);
     source.setCachedText(null);
     RawText parentText = fileReader.loadText(reader, parent);
