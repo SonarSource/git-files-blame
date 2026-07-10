@@ -123,7 +123,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     try {
       BlobReader blobReader = new BlobReader(repo, fileContentProvider);
       FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(new RenameDetector(repo));
-      FileTreeComparator fileTreeComparator = new FileTreeComparator(repo, filteredRenameDetector);
+      FileTreeComparator fileTreeComparator = new FileTreeComparator(repo, filteredRenameDetector, filePaths);
       FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, diffAlgorithm, textComparator, blobReader, blameResult, multithreading);
 
       if (filePaths != null && filePaths.isEmpty()) {

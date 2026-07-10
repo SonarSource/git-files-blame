@@ -42,23 +42,58 @@ import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
 import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
 
 public class FileTreeComparator {
-  /**
-   * If the number of files we are interested in is smaller than this threshold, create a filter to only look
-   * for these files. Creating the filter is expensive and is not worth it for large number of files.
-   */
-  private static final int THRESHOLD_FILTER_FILES = 100;
-
   private final MutableObjectId idBuf = new MutableObjectId();
   private final Repository repository;
   private final FilteredRenameDetector filteredRenameDetector;
+
+  /**
+   * Whether the files being blamed all live under some common subfolder of the repository, decided once from the
+   * original request rather than re-derived on every commit. When true, a path-scoped tree diff is worth its own
+   * setup cost: any other subfolder untouched by a given commit is skipped without even being looked at. When the
+   * files being blamed are spread across the repository root (or it's a full-repository blame), most subfolders
+   * are relevant anyway, so scoping the diff has no upside and only adds overhead.
+   */
+  private final boolean useFilteredDiff;
 
   private TreeWalk treeWalk;
   private TreeFilter filesAndAnyDiffFilter = null;
   private Set<String> filterFilePaths = null;
 
-  public FileTreeComparator(Repository repository, FilteredRenameDetector filteredRenameDetector) {
+  public FileTreeComparator(Repository repository, FilteredRenameDetector filteredRenameDetector, @Nullable Set<String> filePathsToBlame) {
     this.repository = repository;
     this.filteredRenameDetector = filteredRenameDetector;
+    this.useFilteredDiff = isUnderCommonSubfolder(filePathsToBlame);
+  }
+
+  /**
+   * @return true if every path in {@code filePaths} lives under some shared directory of the repository, other
+   *         than the repository root itself.
+   */
+  static boolean isUnderCommonSubfolder(@Nullable Set<String> filePaths) {
+    if (filePaths == null || filePaths.isEmpty()) {
+      return false;
+    }
+    return longestCommonPrefix(filePaths).lastIndexOf('/') >= 0;
+  }
+
+  private static String longestCommonPrefix(Set<String> paths) {
+    String prefix = null;
+    for (String path : paths) {
+      if (prefix == null) {
+        prefix = path;
+        continue;
+      }
+      int len = Math.min(prefix.length(), path.length());
+      int i = 0;
+      while (i < len && prefix.charAt(i) == path.charAt(i)) {
+        i++;
+      }
+      prefix = prefix.substring(0, i);
+      if (prefix.isEmpty()) {
+        return prefix;
+      }
+    }
+    return prefix;
   }
 
   public void initialize(ObjectReader objectReader) {
@@ -97,8 +132,8 @@ public class FileTreeComparator {
     if (child == null) {
       return computeForWorkingDir(parent, filePathsToInclude);
     }
-    if (filePathsToInclude.size() < THRESHOLD_FILTER_FILES) {
-      List<DiffFile> modifiedFiles = findMovedFilesForSmallSet(parent, child, filePathsToInclude);
+    if (useFilteredDiff) {
+      List<DiffFile> modifiedFiles = findMovedFilesWithPathFilter(parent, child, filePathsToInclude);
       if (modifiedFiles != null) {
         return modifiedFiles;
       }
@@ -117,7 +152,7 @@ public class FileTreeComparator {
   }
 
   @CheckForNull
-  private List<DiffFile> findMovedFilesForSmallSet(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
+  private List<DiffFile> findMovedFilesWithPathFilter(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
     if (!filePaths.equals(filterFilePaths)) {
       // this is expensive to compute
       TreeFilter pathFilterGroup = PathFilterGroup.createFromStrings(filePaths);
