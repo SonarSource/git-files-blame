@@ -175,7 +175,7 @@ artifactory {
 sonarqube {
     properties {
         property 'sonar.projectName', projectTitle
-        property "sonar.exclusions","src/main/java/org/sonar/scm/git/blame/diff/**"
+        property "sonar.exclusions","cli/**,src/main/java/org/sonar/scm/git/blame/diff/**"
         property "sonar.java.coveragePlugin", "jacoco"
     }
 }

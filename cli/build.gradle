@@ -1,0 +1,63 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.gradleup.shadow' version '9.0.0'
+}
+
+description = 'Command-line tool to test and benchmark the git-files-blame library'
+
+group = rootProject.group
+version = rootProject.version
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+jar {
+    manifest {
+        attributes('Implementation-Version': project.version)
+    }
+}
+
+repositories {
+    def repository = project.hasProperty('qa') ? 'sonarsource-qa' : 'sonarsource'
+    maven {
+        url = "https://repox.jfrog.io/repox/${repository}"
+        def artifactoryUsername = System.env.'ARTIFACTORY_PRIVATE_USERNAME' ?: (project.hasProperty('artifactoryUsername') ? project.getProperty('artifactoryUsername') : '')
+        def artifactoryPassword = System.env.'ARTIFACTORY_PRIVATE_PASSWORD' ?: (project.hasProperty('artifactoryPassword') ? project.getProperty('artifactoryPassword') : '')
+        if (artifactoryUsername && artifactoryPassword) {
+            credentials {
+                username = artifactoryUsername
+                password = artifactoryPassword
+            }
+        }
+    }
+}
+
+application {
+    mainClass = 'org.sonar.scm.git.blame.cli.BlameCliCommand'
+}
+
+dependencies {
+    implementation rootProject
+    // The library declares JGit as 'implementation', so it is not exposed transitively on our
+    // compile classpath. We use JGit types directly (Repository, TreeWalk, ...), hence a direct dependency.
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:7.7.0.202606012155-r'
+    implementation 'info.picocli:picocli:4.7.7'
+    // JGit 7.x depends on slf4j-api 2.x, so the logging binding must be a 2.x provider.
+    implementation 'org.slf4j:slf4j-api:2.0.16'
+    runtimeOnly 'org.slf4j:slf4j-simple:2.0.16'
+
+    compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
+
+    testImplementation platform('org.junit:junit-bom:6.0.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.assertj:assertj-core:3.27.7'
+}
+
+test {
+    useJUnitPlatform()
+}
