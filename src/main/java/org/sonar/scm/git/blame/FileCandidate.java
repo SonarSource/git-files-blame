@@ -19,10 +19,12 @@
  */
 package org.sonar.scm.git.blame;
 
+import java.lang.ref.SoftReference;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.EditList;
+import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.ObjectId;
 
 /**
@@ -46,6 +48,15 @@ class FileCandidate {
    * making it simple to merge-join with the sorted EditList during blame assignment.
    */
   private Region regionList;
+
+  /**
+   * Content of {@link #sourceBlob}, set when it was already read while this candidate was diffed as the
+   * "parent" side of an edit. Reused instead of re-reading the same blob when this candidate later becomes
+   * the "source" side of a diff against its own parent, since a candidate is diffed as the source at most once.
+   * Held through a {@link SoftReference} so the JVM can reclaim it under memory pressure instead of holding
+   * the whole frontier's file content strongly; callers must fall back to re-reading the blob when it is null.
+   */
+  private SoftReference<RawText> cachedText;
 
   FileCandidate(String originalPath, String path, ObjectId blob) {
     this(originalPath, path, blob, null);
@@ -77,6 +88,15 @@ class FileCandidate {
 
   public void setRegionList(@Nullable Region regionList) {
     this.regionList = regionList;
+  }
+
+  @CheckForNull
+  RawText getCachedText() {
+    return cachedText != null ? cachedText.get() : null;
+  }
+
+  void setCachedText(@Nullable RawText cachedText) {
+    this.cachedText = cachedText != null ? new SoftReference<>(cachedText) : null;
   }
 
   void takeBlame(EditList editList, FileCandidate child) {

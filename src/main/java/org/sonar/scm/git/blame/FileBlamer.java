@@ -86,6 +86,7 @@ public class FileBlamer {
     for (FileCandidate fileCandidate : commit.getAllFiles()) {
       RawText rawText = fileReader.loadText(objectReader, fileCandidate);
       fileCandidate.setRegionList(new Region(0, 0, rawText.size()));
+      fileCandidate.setCachedText(rawText);
       blameResult.initialize(fileCandidate.getPath(), rawText.size());
     }
     fileTreeComparator.initialize(objectReader);
@@ -221,6 +222,8 @@ public class FileBlamer {
     // child's region could be null if it was already moved to another parent
     if (childFile.getRegionList() != null && parentPath != null) {
       FileCandidate parentFile = new FileCandidate(childFile.getOriginalPath(), parentPath, childFile.getBlob(), childFile.getRegionList());
+      // same content as childFile, so any cached text is still valid and can be reused at the next hop
+      parentFile.setCachedText(childFile.getCachedText());
       parent.addFile(parentFile);
       childFile.setRegionList(null);
     }
@@ -249,22 +252,36 @@ public class FileBlamer {
 
     if (parent.getBlob().equals(source.getBlob())) {
       moveUnmodifiedFileRegionsToParent(parent, source);
+      // same content, so the cached text (if any) is still valid for the parent
+      parent.setCachedText(source.getCachedText());
       return parent;
     }
 
     // ObjectReader is not thread safe, so we need to clone it
     ObjectReader reader = objectReader.newReader();
 
-    EditList editList = diffAlgorithm.diff(textComparator, fileReader.loadText(reader, parent), fileReader.loadText(reader, source));
+    // source's content was already read and cached when it was diffed as the parent of its child; a candidate is
+    // only ever diffed as the source once, so the cache can be consumed here and cleared. It may also be null if
+    // the JVM reclaimed the underlying SoftReference under memory pressure, in which case we re-read the blob.
+    RawText sourceText = source.getCachedText() != null ? source.getCachedText() : fileReader.loadText(reader, source);
+    source.setCachedText(null);
+    RawText parentText = fileReader.loadText(reader, parent);
+
+    EditList editList = diffAlgorithm.diff(textComparator, parentText, sourceText);
     if (editList.isEmpty()) {
       // Ignoring whitespace (or some other special comparator) can cause non-identical blobs to have an empty edit list
       moveUnmodifiedFileRegionsToParent(parent, source);
+      parent.setCachedText(parentText);
       return parent;
     }
 
     parent.takeBlame(editList, source);
     // if the parent has nothing left to blame, don't return it
-    return parent.getRegionList() != null ? parent : null;
+    if (parent.getRegionList() == null) {
+      return null;
+    }
+    parent.setCachedText(parentText);
+    return parent;
   }
 
   private static void moveUnmodifiedFileRegionsToParent(FileCandidate parent, FileCandidate child) {
