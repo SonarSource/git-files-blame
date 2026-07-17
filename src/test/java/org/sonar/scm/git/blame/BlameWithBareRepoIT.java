@@ -29,6 +29,7 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.transport.URIish;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -52,6 +53,11 @@ class BlameWithBareRepoIT extends AbstractGitIT {
       .call();
 
     bareRepoBlame = new RepositoryBlameCommand(bareGit.getRepository());
+  }
+
+  @AfterEach
+  void closeBareRepo() {
+    bareRepoBlame.getRepository().close();
   }
 
   private void push() throws GitAPIException {
