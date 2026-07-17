@@ -55,12 +55,25 @@ public class BlameGenerator {
   private final RevWalk revPool;
   private final BiConsumer<Integer, String> progressCallBack;
 
-  public BlameGenerator(Repository repository, FileBlamer fileBlamer, GraphNodeFactory graphNodeFactory, @Nullable BiConsumer<Integer, String> progressCallBack) {
+  /**
+   * The deepest folder shared by every blamed file, or null when the blame is not scoped to a common subfolder (or
+   * the path-scoped walk optimization is disabled). When set, commits that don't touch this folder are skipped by
+   * the walk instead of being visited one by one - see {@link PathScopedWalk}.
+   */
+  @Nullable
+  private final String pathScopeFolder;
+
+  @Nullable
+  private PathScopedWalk pathScopedWalk;
+
+  public BlameGenerator(Repository repository, FileBlamer fileBlamer, GraphNodeFactory graphNodeFactory,
+    @Nullable BiConsumer<Integer, String> progressCallBack, @Nullable String pathScopeFolder) {
     this.repository = repository;
     this.fileBlamer = fileBlamer;
     this.graphNodeFactory = graphNodeFactory;
     this.revPool = new RevWalk(repository);
     this.progressCallBack = progressCallBack;
+    this.pathScopeFolder = pathScopeFolder;
   }
 
   private void prepareStartCommit(@CheckForNull ObjectId startCommit) throws IOException, NoHeadException {
@@ -76,6 +89,9 @@ public class BlameGenerator {
     }
 
     if (!graphNode.getAllFiles().isEmpty()) {
+      if (pathScopeFolder != null) {
+        pathScopedWalk = new PathScopedWalk(revPool, pathScopeFolder);
+      }
       fileBlamer.initialize(revPool.getObjectReader(), graphNode);
       push(graphNode);
     }
@@ -134,13 +150,7 @@ public class BlameGenerator {
   }
 
   private void process(GraphNode commitCandidate) throws IOException {
-    List<RevCommit> parentCommits = new ArrayList<>(commitCandidate.getParentCount());
-
-    for (int i = 0; i < commitCandidate.getParentCount(); i++) {
-      RevCommit parentCommit = commitCandidate.getParentCommit(i);
-      revPool.parseHeaders(parentCommit);
-      parentCommits.add(parentCommit);
-    }
+    List<RevCommit> parentCommits = resolveParents(commitCandidate);
 
     List<GraphNode> parentStatefulCommits;
     if (parentCommits.size() > 1) {
@@ -157,6 +167,22 @@ public class BlameGenerator {
 
     //Only process the result at the end, when all the regions have been assigned to each parent
     fileBlamer.saveBlameDataForFilesInCommit(commitCandidate);
+  }
+
+  private List<RevCommit> resolveParents(GraphNode commitCandidate) throws IOException {
+    // The path-scoped walk skips ancestors (and simplifies merges) that don't touch the blamed subfolder, so they
+    // are never enqueued and diffed. It needs a real commit, so the working-dir node falls back to raw parents.
+    if (pathScopedWalk != null && commitCandidate.getCommit() != null) {
+      return pathScopedWalk.simplifiedParents(commitCandidate.getCommit());
+    }
+
+    List<RevCommit> parentCommits = new ArrayList<>(commitCandidate.getParentCount());
+    for (int i = 0; i < commitCandidate.getParentCount(); i++) {
+      RevCommit parentCommit = commitCandidate.getParentCommit(i);
+      revPool.parseHeaders(parentCommit);
+      parentCommits.add(parentCommit);
+    }
+    return parentCommits;
   }
 
   private void close() {

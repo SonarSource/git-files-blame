@@ -19,12 +19,42 @@
  */
 package org.sonar.scm.git.blame;
 
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class FileTreeComparatorTest {
+
+  @Test
+  void commonSubfolder_whenNoCommonSubfolder_thenEmpty() {
+    assertThat(FileTreeComparator.commonSubfolder(null)).isEmpty();
+    assertThat(FileTreeComparator.commonSubfolder(Set.of())).isEmpty();
+    assertThat(FileTreeComparator.commonSubfolder(Set.of("fileA.txt"))).isEmpty();
+    assertThat(FileTreeComparator.commonSubfolder(Set.of("domainA/fileA.txt", "domainB/fileB.txt"))).isEmpty();
+    assertThat(FileTreeComparator.commonSubfolder(Set.of("domainA/fileA.txt", "domainAB/fileB.txt"))).isEmpty();
+  }
+
+  @Test
+  void commonSubfolder_whenSingleFileInSubfolder_thenReturnsItsFolder() {
+    assertThat(FileTreeComparator.commonSubfolder(Set.of("domain/fileA.txt"))).contains("domain");
+  }
+
+  @Test
+  void commonSubfolder_whenNestedCommonFolder_thenReturnsDeepestSharedFolder() {
+    assertThat(FileTreeComparator.commonSubfolder(Set.of("net/ethtool/a.c", "net/ethtool/b.c"))).contains("net/ethtool");
+    assertThat(FileTreeComparator.commonSubfolder(Set.of("net/ethtool/a.c", "net/ethtool/sub/c.c"))).contains("net/ethtool");
+    assertThat(FileTreeComparator.commonSubfolder(Set.of("domain/fileA.txt", "domain/fileB.txt", "domain/sub/fileC.txt")))
+      .contains("domain");
+  }
+
+  @Test
+  void commonSubfolder_ignoresNameOnlyPrefixThatIsNotADirectory() {
+    // "a/main..." and "a/maintenance..." share the string prefix "a/main" but their common directory is "a"
+    assertThat(FileTreeComparator.commonSubfolder(Set.of("a/main/x.c", "a/maintenance/y.c"))).contains("a");
+    assertThat(FileTreeComparator.commonSubfolder(Set.of("a/main/x.c", "a/maintenance/y.c"))).isNotEqualTo(Optional.of("a/main"));
+  }
 
   @Test
   void isUnderCommonSubfolder_whenFilePathsIsNull_thenFalse() {
