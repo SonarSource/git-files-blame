@@ -91,6 +91,34 @@ combine subfolder changes still run the full fallback.
 modified file against its parent blob) across a thread pool sized to the available processors.
 The commit traversal itself stays single-threaded; only the independent per-file splits fan out.
 
+## Blame semantics vs native git
+
+Besides being faster, this library also makes a few **behavioral** choices that differ from a
+plain `git blame`. They rarely matter, but on files with lots of repeated/boilerplate lines
+(e.g. Javadoc) they change which commit a line is attributed to. To reproduce native git's
+output line-for-line you must invoke `git blame` with the matching flags shown below (this is
+exactly what the `*BlameComparisonIT` integration tests do — see `GitCli`).
+
+| Behavior | This library | Plain `git blame` default | Flag to make native match |
+| --- | --- | --- | --- |
+| Diff algorithm | JGit `HistogramDiff` | Myers | `--diff-algorithm=histogram` |
+| Indent heuristic | not applied (JGit's `HistogramDiff` has none) | applied (`diff.indentHeuristic=true`) | `-c diff.indentHeuristic=false` |
+| Intra-file move/copy detection | **none** | none by default, but the tests' ground truth used `-M` | *drop* `-M` |
+| Whitespace | set by the caller via `setTextComparator(...)`; the default is `RawTextComparator.DEFAULT` (whitespace-sensitive) | whitespace-sensitive | `-w` **iff** the caller uses `WS_IGNORE_ALL` |
+
+Notes:
+
+- **Move/copy detection is the big one.** `git blame -M`/`-C` detect that a block of added lines
+  is a move or copy of lines already present, and attribute them to the *original* source commit.
+  This library does no such intra-file move/copy detection, so it attributes those lines to the
+  commit that actually added them. Comparing against `git blame -M` therefore shows large,
+  systematic (but expected) differences; comparing without `-M` does not.
+- **Whitespace handling is delegated to the caller.** The library defaults to whitespace-sensitive
+  blame. SonarQube's scanner engine (the primary consumer) opts into
+  `setTextComparator(RawTextComparator.WS_IGNORE_ALL)`, which is equivalent to native `git blame -w`
+  and matches its old native/JGit blame implementations. `WS_IGNORE_ALL` and `-w` agree except for
+  a handful of whitespace-only hunk-boundary ties that the two implementations break differently.
+
 ## Have Question or Feedback?
 
 For support questions ("How do I?", "I got this error, why?", ...), please first read the [documentation](https://docs.sonarqube.org) and then head to the [SonarSource Community](https://community.sonarsource.com/c/help/sq/10). The answer to your question has likely already been answered! 🤓

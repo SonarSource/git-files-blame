@@ -1,6 +1,8 @@
 plugins {
     id 'com.github.hierynomus.license' version '0.16.1'
     id 'java'
+    id 'java-test-fixtures'
+    id 'jvm-test-suite'
     id 'com.jfrog.artifactory' version '6.0.4'
     id "org.sonarqube" version "7.2.2.6593"
     id 'jacoco'
@@ -49,11 +51,56 @@ dependencies {
     testImplementation 'org.apache.commons:commons-lang3:3.20.0'
     testImplementation 'org.assertj:assertj-core:3.27.7'
     testImplementation 'org.mockito:mockito-core:5.23.0'
+
+    // The library declares JGit as 'implementation', so it is not exposed transitively to fixtures.
+    // SyntheticRepoGenerator builds repos directly through JGit's object-database APIs.
+    testFixturesImplementation 'org.eclipse.jgit:org.eclipse.jgit:7.7.0.202606012155-r'
 }
 
 test {
     useJUnitPlatform {
         excludeTags 'benchmark'
+    }
+}
+
+testing {
+    suites {
+        integrationTest(JvmTestSuite) {
+            useJUnitJupiter()
+            dependencies {
+                implementation project()
+                implementation testFixtures(project())
+                implementation 'org.eclipse.jgit:org.eclipse.jgit:7.7.0.202606012155-r'
+                implementation 'org.assertj:assertj-core:3.27.7'
+            }
+            targets.all {
+                testTask.configure {
+                    useJUnitPlatform {
+                        excludeTags 'fullQa'
+                    }
+                    outputs.upToDateWhen { false }
+                    testLogging {
+                        showStandardStreams = true
+                        events 'passed', 'skipped', 'failed', 'standardOut'
+                    }
+                }
+            }
+        }
+    }
+}
+
+tasks.register('integrationTestFullQa', Test) {
+    group = 'verification'
+    description = 'Native-git vs library blame comparison against OpenJDK and the Linux kernel (heavy clones; label/master-gated).'
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'fullQa'
+    }
+    outputs.upToDateWhen { false }
+    testLogging {
+        showStandardStreams = true
+        events 'passed', 'skipped', 'failed', 'standardOut'
     }
 }
 
