@@ -172,8 +172,9 @@ public class BlameGenerator {
   private List<RevCommit> resolveParents(GraphNode commitCandidate) throws IOException {
     // The path-scoped walk skips ancestors (and simplifies merges) that don't touch the blamed subfolder, so they
     // are never enqueued and diffed. It needs a real commit, so the working-dir node falls back to raw parents.
-    if (pathScopedWalk != null && commitCandidate.getCommit() != null) {
-      return pathScopedWalk.simplifiedParents(commitCandidate.getCommit());
+    RevCommit commit = commitCandidate.getCommit();
+    if (pathScopedWalk != null && commit != null) {
+      return pathScopedWalk.simplifiedParents(commit, commitCandidate.getAllPaths());
     }
 
     List<RevCommit> parentCommits = new ArrayList<>(commitCandidate.getParentCount());

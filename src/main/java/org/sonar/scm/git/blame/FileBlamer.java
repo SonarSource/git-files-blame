@@ -135,7 +135,7 @@ public class FileBlamer {
 
   public List<GraphNode> blameParents(List<RevCommit> parentCommits, GraphNode child) throws IOException {
     // the working directory should always have a single parent
-    requireNonNull(child.getCommit());
+    RevCommit childCommit = requireNonNull(child.getCommit());
 
     List<GraphNode> parentStatefulCommits = new ArrayList<>(parentCommits.size());
     for (RevCommit parentCommit : parentCommits) {
@@ -144,31 +144,11 @@ public class FileBlamer {
 
     // diff files will include added,modified,rename,copy. It will not include unmodified files.
     List<List<DiffFile>> fileTreeDiffs = fileTreeComparator.supportsCheapDiff()
-      ? computeMergeDiffsWithScopedFallback(parentCommits, child)
-      : computeMergeDiffs(parentCommits, child);
+      ? computeMergeDiffsWithScopedFallback(parentCommits, child, childCommit)
+      : computeMergeDiffs(parentCommits, childCommit, child.getAllPaths());
 
-    // Detect unmodified files (same path)
-    for (int i = 0; i < parentCommits.size(); i++) {
-      Set<String> diffNewPaths = fileTreeDiffs.get(i).stream().map(DiffFile::getNewPath).collect(Collectors.toSet());
-      for (FileCandidate f : child.getAllFiles()) {
-        if (!diffNewPaths.contains(f.getPath())) {
-          // if file wasn't modified, it means it is unmodified. Move it to the parent.
-          moveFileToParent(parentStatefulCommits.get(i), f, f.getPath());
-        }
-      }
-    }
-
-    // Detect unmodified files with RENAME or COPY. They have the exact same BLOB but different paths
-    for (int i = 0; i < parentCommits.size(); i++) {
-      for (DiffFile diffFile : fileTreeDiffs.get(i)) {
-        Collection<FileCandidate> fileCandidates = child.getFilesByPath(diffFile.getNewPath());
-        for (FileCandidate f : fileCandidates) {
-          if (f.getBlob().equals(diffFile.getOldObjectId())) {
-            moveFileToParent(parentStatefulCommits.get(i), f, diffFile.getOldPath());
-          }
-        }
-      }
-    }
+    moveUnmodifiedSamePathFilesToParents(child, fileTreeDiffs, parentStatefulCommits);
+    moveUnmodifiedRenamedFilesToParents(child, fileTreeDiffs, parentStatefulCommits);
 
     // try to match regions with parents, using the file tree diffs that we already computed
     for (int i = 0; i < parentStatefulCommits.size(); i++) {
@@ -177,10 +157,35 @@ public class FileBlamer {
     return parentStatefulCommits;
   }
 
-  private List<List<DiffFile>> computeMergeDiffs(List<RevCommit> parentCommits, GraphNode child) throws IOException {
+  private static void moveUnmodifiedSamePathFilesToParents(GraphNode child, List<List<DiffFile>> fileTreeDiffs, List<GraphNode> parentStatefulCommits) {
+    for (int i = 0; i < parentStatefulCommits.size(); i++) {
+      Set<String> diffNewPaths = fileTreeDiffs.get(i).stream().map(DiffFile::getNewPath).collect(Collectors.toSet());
+      for (FileCandidate f : child.getAllFiles()) {
+        if (!diffNewPaths.contains(f.getPath())) {
+          // if file wasn't modified, it means it is unmodified. Move it to the parent.
+          moveFileToParent(parentStatefulCommits.get(i), f, f.getPath());
+        }
+      }
+    }
+  }
+
+  private static void moveUnmodifiedRenamedFilesToParents(GraphNode child, List<List<DiffFile>> fileTreeDiffs, List<GraphNode> parentStatefulCommits) {
+    // Unmodified files with RENAME or COPY have the exact same BLOB but a different path.
+    for (int i = 0; i < parentStatefulCommits.size(); i++) {
+      for (DiffFile diffFile : fileTreeDiffs.get(i)) {
+        for (FileCandidate f : child.getFilesByPath(diffFile.getNewPath())) {
+          if (f.getBlob().equals(diffFile.getOldObjectId())) {
+            moveFileToParent(parentStatefulCommits.get(i), f, diffFile.getOldPath());
+          }
+        }
+      }
+    }
+  }
+
+  private List<List<DiffFile>> computeMergeDiffs(List<RevCommit> parentCommits, RevCommit childCommit, Set<String> blamedPaths) throws IOException {
     List<List<DiffFile>> fileTreeDiffs = new ArrayList<>(parentCommits.size());
     for (RevCommit parentCommit : parentCommits) {
-      fileTreeDiffs.add(fileTreeComparator.findMovedFiles(parentCommit, child.getCommit(), child.getAllPaths()));
+      fileTreeDiffs.add(fileTreeComparator.findMovedFiles(parentCommit, childCommit, blamedPaths));
     }
     return fileTreeDiffs;
   }
@@ -194,14 +199,14 @@ public class FileBlamer {
    * blame. The full fallback still runs for a parent whose added files are not carried by any other parent (a real
    * rename or add), so the result is identical to {@link #computeMergeDiffs}.
    */
-  private List<List<DiffFile>> computeMergeDiffsWithScopedFallback(List<RevCommit> parentCommits, GraphNode child) throws IOException {
+  private List<List<DiffFile>> computeMergeDiffsWithScopedFallback(List<RevCommit> parentCommits, GraphNode child, RevCommit childCommit) throws IOException {
     int n = parentCommits.size();
     Set<String> blamedPaths = child.getAllPaths();
 
     List<FileTreeComparator.CheapDiff> cheapDiffs = new ArrayList<>(n);
     List<Set<String>> changedPathsPerParent = new ArrayList<>(n);
     for (RevCommit parentCommit : parentCommits) {
-      FileTreeComparator.CheapDiff cheap = fileTreeComparator.cheapDiff(parentCommit, child.getCommit(), blamedPaths);
+      FileTreeComparator.CheapDiff cheap = fileTreeComparator.cheapDiff(parentCommit, childCommit, blamedPaths);
       cheapDiffs.add(cheap);
       Set<String> changed = new HashSet<>(cheap.addedPaths());
       cheap.modified().forEach(diffFile -> changed.add(diffFile.getNewPath()));
@@ -216,7 +221,7 @@ public class FileBlamer {
       } else if (allAddedPathsCarriedByAnotherParent(cheap.addedPaths(), i, changedPathsPerParent)) {
         fileTreeDiffs.add(withSyntheticAddedFiles(cheap));
       } else {
-        fileTreeDiffs.add(fileTreeComparator.fullDiff(parentCommits.get(i), child.getCommit(), blamedPaths));
+        fileTreeDiffs.add(fileTreeComparator.fullDiff(parentCommits.get(i), childCommit, blamedPaths));
       }
     }
     return fileTreeDiffs;

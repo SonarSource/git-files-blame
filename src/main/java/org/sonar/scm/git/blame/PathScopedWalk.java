@@ -24,11 +24,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
+import org.eclipse.jgit.treewalk.filter.PathFilter;
+import org.eclipse.jgit.treewalk.filter.TreeFilter;
 
 /**
  * Speeds up blaming files that all live under a common subfolder by letting the blame walk skip over the (often
@@ -47,8 +51,16 @@ import org.eclipse.jgit.treewalk.TreeWalk;
  * subfolder tree is identical to the returned ancestor's, so moving the regions across the skipped span is a no-op.
  *
  * <p>The subfolder tree ids are read on demand and cached, so each ancestor is inspected at most once - there is no
- * separate up-front history pass. Renames are handled naturally: a commit that renames a file within (or into) the
- * subfolder changes the subfolder's tree, so it is kept as a boundary and diffed as usual.
+ * separate up-front history pass. Renames <em>within</em> the subfolder are handled naturally: they change the
+ * subfolder's tree, so the commit is kept as a boundary and diffed as usual.
+ *
+ * <p>Renames <em>into</em> the subfolder from an outside path need more care. Skipping is only safe for content that
+ * stayed inside the subfolder for the whole skipped span; a file renamed in from elsewhere carries content whose
+ * source lived outside the subfolder and may have been modified by a commit we would otherwise skip. Two guards keep
+ * the result exact: {@link #simplifiedParents(RevCommit, Set)} does not collapse the parent of a commit that adds a
+ * blamed path to the subfolder (its rename source, resolved by the diff, could be an outside path touched in the
+ * skipped span), and it stops collapsing altogether once any blamed file has moved outside the subfolder, letting the
+ * normal walk follow that content wherever it goes.
  *
  * <p>Merges are NOT simplified - all their parents are kept and diffed as usual, so the result stays identical to
  * the unscoped walk. Skipping a merge parent based on the subfolder tree is tempting but not exact: blame works at
@@ -78,21 +90,64 @@ class PathScopedWalk {
    * The parents the blame walk should actually descend into for {@code commit}. A single-parent commit yields its
    * collapsed parent, skipping the chain of ancestors that don't touch the blamed subfolder. A merge yields all its
    * parents unchanged (see the class javadoc for why merges can't be simplified exactly).
+   *
+   * @param blamedPaths the current paths of the files still being blamed at {@code commit}
    */
-  List<RevCommit> simplifiedParents(RevCommit commit) throws IOException {
+  List<RevCommit> simplifiedParents(RevCommit commit, Set<String> blamedPaths) throws IOException {
     int parentCount = commit.getParentCount();
-    if (parentCount == 1) {
-      return List.of(collapse(parseParent(commit, 0)));
+    if (parentCount != 1) {
+      // Merges keep all their parents and are diffed as usual: skipping a merge parent (even one whose subfolder tree
+      // matches the merge) is not exact, because blame works at line granularity and a line can match a parent the
+      // merge's subfolder tree differs from - the unscoped walk follows those line-level matches into that parent.
+      List<RevCommit> parents = new ArrayList<>(parentCount);
+      for (int i = 0; i < parentCount; i++) {
+        parents.add(parseParent(commit, i));
+      }
+      return parents;
     }
 
-    // Merges keep all their parents and are diffed as usual: skipping a merge parent (even one whose subfolder tree
-    // matches the merge) is not exact, because blame works at line granularity and a line can match a parent the
-    // merge's subfolder tree differs from - the unscoped walk follows those line-level matches into that parent.
-    List<RevCommit> parents = new ArrayList<>(parentCount);
-    for (int i = 0; i < parentCount; i++) {
-      parents.add(parseParent(commit, i));
+    RevCommit parent = parseParent(commit, 0);
+    // A blamed file living outside the subfolder was renamed in from elsewhere and is now followed by its old path;
+    // the commits that touched it don't touch the subfolder, so collapsing would wrongly skip them. Fall back to the
+    // real parent so the normal walk follows that content.
+    if (!allUnderFolder(blamedPaths)) {
+      return List.of(parent);
     }
-    return parents;
+
+    RevCommit collapsed = collapse(parent);
+    // When collapse skipped commits, this commit is diffed against a further-back ancestor instead of its real
+    // parent. That is exact for content that stayed in the subfolder, but not for a file added to the subfolder here
+    // by a rename: its source can be an outside path modified in a skipped commit, which the ancestor no longer
+    // reflects. Diff such a commit against its real parent instead. When nothing was skipped there is no such gap.
+    if (collapsed != parent && addsBlamedPathToFolder(commit, parent)) {
+      return List.of(parent);
+    }
+    return List.of(collapsed);
+  }
+
+  private boolean allUnderFolder(Set<String> paths) {
+    String folderPrefix = folder + "/";
+    return paths.stream().allMatch(path -> path.startsWith(folderPrefix));
+  }
+
+  /**
+   * @return true if {@code commit} adds a file to the blamed subfolder relative to {@code parent}. A path-filtered
+   *         diff restricted to the subfolder, so it only visits the files that changed there.
+   */
+  private boolean addsBlamedPathToFolder(RevCommit commit, RevCommit parent) throws IOException {
+    try (TreeWalk treeWalk = new TreeWalk(objectReader)) {
+      treeWalk.addTree(parent.getTree());
+      treeWalk.addTree(commit.getTree());
+      treeWalk.setRecursive(true);
+      treeWalk.setFilter(AndTreeFilter.create(PathFilter.create(folder), TreeFilter.ANY_DIFF));
+      while (treeWalk.next()) {
+        // Absent in the parent (tree 0) but present in the commit (tree 1): a file added into the subfolder.
+        if (treeWalk.getRawMode(0) == 0) {
+          return true;
+        }
+      }
+      return false;
+    }
   }
 
   private RevCommit parseParent(RevCommit commit, int i) throws IOException {
@@ -114,29 +169,38 @@ class PathScopedWalk {
 
     List<ObjectId> skipped = new ArrayList<>();
     RevCommit current = commit;
-    while (current.getParentCount() == 1) {
+    boolean canSkip = true;
+    while (canSkip && current.getParentCount() == 1) {
       RevCommit alreadyResolved = collapseCache.get(current.getId());
       if (alreadyResolved != null) {
         current = alreadyResolved;
-        break;
+        canSkip = false;
+      } else if (canSkipCurrent(current)) {
+        skipped.add(current.getId());
+        current = current.getParent(0);
+      } else {
+        canSkip = false;
       }
-      RevCommit parent = current.getParent(0);
-      revPool.parseHeaders(parent);
-      ObjectId currentFolder = folderTreeId(current);
-      // Stop (don't skip) when the subfolder doesn't exist at current: the blamed files lived elsewhere back then
-      // (a directory rename/reorg), and only the normal walk follows content across that boundary. Also stop when
-      // current changed the subfolder relative to its parent - it must be diffed.
-      if (currentFolder.equals(ObjectId.zeroId()) || !currentFolder.equals(folderTreeId(parent))) {
-        break;
-      }
-      skipped.add(current.getId());
-      current = parent;
     }
 
     for (ObjectId id : skipped) {
       collapseCache.put(id, current);
     }
     return current;
+  }
+
+  /**
+   * @return true if {@code current} left the blamed subfolder untouched relative to its single parent, so the blame
+   *         regions can be moved straight onto that parent. Parses the parent's headers as a side effect.
+   */
+  private boolean canSkipCurrent(RevCommit current) throws IOException {
+    RevCommit parent = current.getParent(0);
+    revPool.parseHeaders(parent);
+    ObjectId currentFolder = folderTreeId(current);
+    // Don't skip when the subfolder doesn't exist at current: the blamed files lived elsewhere back then (a directory
+    // rename/reorg), and only the normal walk follows content across that boundary. Don't skip when current changed
+    // the subfolder relative to its parent either - it must be diffed.
+    return !currentFolder.equals(ObjectId.zeroId()) && currentFolder.equals(folderTreeId(parent));
   }
 
   /**

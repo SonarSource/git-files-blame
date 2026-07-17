@@ -183,6 +183,31 @@ class PathScopedWalkIT extends AbstractGitIT {
     assertSameBlame(Set.of("src/existing.txt", "src/feature.txt"));
   }
 
+  /**
+   * A file is renamed INTO an already-existing blamed subfolder from an outside path that was modified in a commit
+   * the path-scoped walk would collapse. The rename source's content changed in the skipped commit, so resolving the
+   * rename against the collapsed ancestor (instead of the real parent) would mis-attribute those lines. The
+   * path-scoped walk must still match the regular blame.
+   */
+  @Test
+  void pathScopedWalk_producesSameBlameAsRegularWalk_whenFileRenamedIntoFolderWithSourceEditedInCollapsedCommit() throws IOException, GitAPIException {
+    createFile(baseDir, "lib/x.txt", "l1", "l2");
+    createFile(baseDir, "src/keep.txt", "k1");
+    commit("lib/x.txt", "src/keep.txt");
+
+    // Edits the rename source while it still lives outside the blamed folder - this commit doesn't touch src/, so
+    // the path-scoped walk collapses it.
+    createFile(baseDir, "lib/x.txt", "l1", "l2-edited");
+    commit("lib/x.txt");
+
+    // Rename lib/x.txt -> src/x.txt into the pre-existing blamed folder, with no content change.
+    moveFile(baseDir, "lib/x.txt", "src/x.txt");
+    rm("lib/x.txt");
+    commit("lib/x.txt", "src/x.txt");
+
+    assertSameBlame(Set.of("src/x.txt", "src/keep.txt"));
+  }
+
   private void assertSameBlame(Set<String> blamedPaths) throws GitAPIException {
     BlameResult unscoped = blameWith(blamedPaths, false);
     BlameResult scoped = blameWith(blamedPaths, true);
