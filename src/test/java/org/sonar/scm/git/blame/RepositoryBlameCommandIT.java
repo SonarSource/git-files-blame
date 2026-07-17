@@ -22,6 +22,7 @@ package org.sonar.scm.git.blame;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -32,6 +33,8 @@ import org.eclipse.jgit.api.BlameCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.ConfigConstants;
+import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.sonar.scm.git.blame.BlameResult.FileBlame;
 
@@ -506,6 +509,31 @@ class RepositoryBlameCommandIT extends AbstractGitIT {
 
     assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
       .containsOnly(tuple("fileA", new String[]{c1, null}));
+  }
+
+  @Test
+  void blame_whenLargeFileSetIncludesTrackedFileUnderGitignoredFolder_thenBlameIt() throws IOException, GitAPIException {
+    // A committed file living under a .gitignore'd folder is invisible to a working directory walk, but it is still
+    // part of the commit tree. When the number of files exceeds NB_FILES_THRESHOLD_ONE_TREE_WALK, initialization
+    // must read its size from the object store, not from the working directory (which prunes ignored folders).
+    createFile(baseDir, "src/WEB-INF/classes/tracked", "line1");
+    String trackedCommit = commit("src/WEB-INF/classes/tracked");
+
+    createFile(baseDir, ".gitignore", "classes/");
+    commit(".gitignore");
+
+    List<String> paths = new ArrayList<>();
+    for (int i = 0; i < FileBlamer.NB_FILES_THRESHOLD_ONE_TREE_WALK; i++) {
+      createFile(baseDir, "file" + i, "line1");
+      paths.add("file" + i);
+    }
+    commit(paths.toArray(new String[0]));
+
+    ObjectId head = git.getRepository().resolve(Constants.HEAD);
+    BlameResult result = blame.setStartCommit(head).call();
+
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .contains(tuple("src/WEB-INF/classes/tracked", new String[]{trackedCommit}));
   }
 
   private static void assertAllBlameCommits(BlameResult result, String expectedCommit) {

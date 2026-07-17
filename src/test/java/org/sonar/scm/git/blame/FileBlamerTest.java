@@ -36,7 +36,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -116,7 +115,7 @@ class FileBlamerTest {
     addFileCandidates(NB_FILES_THRESHOLD_ONE_TREE_WALK, statefulCommit);
 
     Map<String, Integer> filesize = statefulCommit.getAllFiles().stream().collect(Collectors.toMap(FileCandidate::getPath, f -> 30));
-    when(fileReader.getFileSizes(anySet())).thenReturn(filesize);
+    when(fileReader.getFileSizes(any(), any())).thenReturn(filesize);
 
     fileBlamer.initialize(objectReader, statefulCommit);
 
@@ -132,7 +131,7 @@ class FileBlamerTest {
     CommitGraphNode statefulCommit = new CommitGraphNode(revCommit, NB_FILES_THRESHOLD_ONE_TREE_WALK);
     addFileCandidates(NB_FILES_THRESHOLD_ONE_TREE_WALK, statefulCommit);
 
-    when(fileReader.getFileSizes(anySet())).thenThrow(new IOException());
+    when(fileReader.getFileSizes(any(), any())).thenThrow(new IOException());
 
     assertThatThrownBy(() -> fileBlamer.initialize(objectReader, statefulCommit)).isInstanceOf(IllegalStateException.class);
   }
@@ -150,7 +149,7 @@ class FileBlamerTest {
     Map<String, Integer> filesize = statefulCommit.getAllFiles().stream().collect(Collectors.toMap(FileCandidate::getPath, f -> 30));
     // Simulate a file is not present in the repository
     filesize.keySet().removeAll(filesize.keySet().stream().limit(1).collect(Collectors.toSet()));
-    when(fileReader.getFileSizes(anySet())).thenReturn(filesize);
+    when(fileReader.getFileSizes(any(), any())).thenReturn(filesize);
 
     assertThatThrownBy(() -> fileBlamer.initialize(objectReader, statefulCommit)).isInstanceOf(IllegalStateException.class);
   }

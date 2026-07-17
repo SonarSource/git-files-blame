@@ -21,10 +21,13 @@ package org.sonar.scm.git.blame;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Set;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.transport.URIish;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,9 +90,12 @@ class BlameWithBareRepoIT extends AbstractGitIT {
     push();
 
     var reader = new BlobReader(bareRepoBlame.getRepository());
-    reader.getFileSizes(Set.of("file1", "file2"));
+    ObjectReader objectReader = bareRepoBlame.getRepository().newObjectReader();
+    List<FileCandidate> candidates = List.of(
+      new FileCandidate("file1", "file1", ObjectId.zeroId()),
+      new FileCandidate("file2", "file2", ObjectId.zeroId()));
 
-    assertThat(reader.getFileSizes(Set.of("file1", "file2"))).size().isEqualTo(2);
-    assertThat(reader.getFileSizes(Set.of("file1", "file2"))).containsOnly(entry("file1", 1), entry("file2", 2));
+    assertThat(reader.getFileSizes(objectReader, candidates)).size().isEqualTo(2);
+    assertThat(reader.getFileSizes(objectReader, candidates)).containsOnly(entry("file1", 1), entry("file2", 2));
   }
 }

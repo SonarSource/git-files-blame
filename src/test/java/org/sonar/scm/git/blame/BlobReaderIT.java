@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Set;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.junit.jupiter.api.Test;
@@ -73,9 +72,12 @@ class BlobReaderIT extends AbstractGitIT {
 
 
     BlobReader reader = new BlobReader(git.getRepository());
-    reader.getFileSizes(Set.of("file1", "file2"));
+    ObjectReader objectReader = git.getRepository().newObjectReader();
+    List<FileCandidate> candidates = List.of(
+      new FileCandidate("file1", "file1", ObjectId.zeroId()),
+      new FileCandidate("file2", "file2", ObjectId.zeroId()));
 
-    assertThat(reader.getFileSizes(Set.of("file1", "file2"))).size().isEqualTo(2);
-    assertThat(reader.getFileSizes(Set.of("file1", "file2"))).containsOnly(entry("file1", 1), entry("file2", 2));
+    assertThat(reader.getFileSizes(objectReader, candidates)).size().isEqualTo(2);
+    assertThat(reader.getFileSizes(objectReader, candidates)).containsOnly(entry("file1", 1), entry("file2", 2));
   }
 }
