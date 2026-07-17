@@ -85,9 +85,16 @@ public class BlameCliCommand implements Callable<Integer> {
     this.writeConcurrency = value;
   }
 
+  private long memorySampleIntervalMs = 50;
+
   @Option(names = "--memory-sample-interval-ms", defaultValue = "50",
     description = "Heap sampling interval in milliseconds. Default: ${DEFAULT-VALUE}.")
-  private long memorySampleIntervalMs;
+  private void setMemorySampleIntervalMs(long value) {
+    if (value < 1) {
+      throw new ParameterException(spec.commandLine(), "--memory-sample-interval-ms must be >= 1, but was " + value + ".");
+    }
+    this.memorySampleIntervalMs = value;
+  }
 
   @Override
   public Integer call() throws Exception {
@@ -104,12 +111,14 @@ public class BlameCliCommand implements Callable<Integer> {
 
       BlameRunResult blameRun = new BlameRunner()
         .run(repository, startCommitId, enumeration.filesToBlame(), !singleThreaded);
+
+      sampler.stop();
+      GcStats gc = GcStats.snapshot().minus(gcBefore);
+
       WriteResult writeResult = skipWriteOutput
         ? WriteResult.skipped()
         : new BlameOutputWriter().write(blameRun.blameResult().getFileBlames(), outputDir, writeConcurrency);
 
-      sampler.stop();
-      GcStats gc = GcStats.snapshot().minus(gcBefore);
       long totalDurationNanos = System.nanoTime() - totalStart;
 
       BenchmarkReport report = buildReport(located, startCommitId, enumeration, blameRun, writeResult,

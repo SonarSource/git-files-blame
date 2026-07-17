@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,6 +27,12 @@ abstract class AbstractCliIT {
     Repository repository = FileRepositoryBuilder.create(repoDir.resolve(".git").toFile());
     repository.create();
     git = new Git(repository);
+  }
+
+  @AfterEach
+  void tearDownRepository() {
+    git.getRepository().close();
+    git.close();
   }
 
   protected void writeFile(String relativePath, String content) throws IOException {
