@@ -19,6 +19,78 @@ In the event where we want to blame multiple files, we would need to call this c
 
 Our tool propose to blame every file simultaneously, traversing the commit graph only once and saving the cost of operations that are normally done for each file.
 
+## Optimizations compared to native git blame
+
+The sections below describe how this library diverges from a plain `git blame` (or looping
+JGit's `BlameCommand` over each file) to stay fast on large repositories and monorepos.
+
+### One commit traversal for all files
+
+This is the core idea. Native blame walks the whole history once *per file*; blaming _N_ files
+means _N_ independent walks that each re-parse commits, re-open trees and re-run diffs. This
+library walks the commit graph a **single** time, carrying the set of not-yet-blamed regions of
+every file backwards together. Work that native blame repeats per file — parsing each commit,
+loading trees, tree diffing, rename detection — is done once per commit hop and shared across
+all blamed files.
+
+### Patched JGit rename detection (the `diff` package)
+
+Five classes under `org.sonar.scm.git.blame.diff` are copied from JGit to apply a fix that was
+never merged upstream (the original Gerrit link is dead). Upstream JGit can report a single
+deleted file as the rename source of *several* added files; when blaming many files at once,
+that would make more than one file follow its history back to the same origin and corrupt the
+result. The fix keeps the first match a `RENAME` and turns the rest into `COPY`. Full rationale
+and the exact patch — kept in-repo so it survives the dead link — are in
+[docs/jgit-rename-detector-fork.md](docs/jgit-rename-detector-fork.md).
+
+### Rename detection restricted to the blamed files
+
+`FilteredRenameDetector` narrows JGit's rename detection to only the files being blamed: added
+files whose new path isn't among the blamed paths are dropped before rename scoring runs.
+Rename detection is the most expensive step of a diff (content-similarity matching is roughly
+quadratic in the number of adds × deletes), so restricting the destination set to what we
+actually care about avoids a large amount of pointless similarity scoring.
+
+### Reuse of blob content already read
+
+Every file candidate's blob used to be read and line-split twice: once as the *parent* side of
+an edit (or at the initial HEAD load) and again when the same object became the *source* side of
+the diff at the next commit hop. The `RawText` is now cached on the candidate when read as the
+parent/HEAD side and reused at the next hop. Measured **22–44% faster** on blob-loading-bound
+histories (bigger gain the larger the files), negligible on rename-heavy ones.
+
+### Path-scoped tree diff
+
+When every blamed file lives under a common subfolder (e.g. analyzing one module of a monorepo),
+the per-commit diff is scoped to that subfolder so JGit skips whole unchanged subtrees instead of
+computing the full-repository diff and running rename detection over it. The decision is made
+once from the request — whether the blamed files share a common subfolder — rather than from a
+file-count threshold, so it still triggers when thousands of files are blamed as long as they are
+a small slice of a much bigger tree.
+
+### Path-scoped walk and merge-aware rename fallback
+
+Two further exact optimizations kick in automatically when all blamed files share a common
+subfolder:
+
+- **Path-scoped walk** (`PathScopedWalk`): chains of single-parent commits whose subfolder tree
+  is unchanged are collapsed, so commits that never touch the blamed subfolder are never enqueued
+  or diffed. Big win on linear histories (JDK `src/java.xml`: ~51k → ~7k commit iterations).
+- **Merge-aware rename fallback**: the expensive full-repository diff + rename detection that
+  runs when a blamed file looks *added* is the real bottleneck on merge-heavy repositories. At a
+  merge it is now skipped for a parent when the added file is carried unchanged by another parent
+  (which claims its regions before any diff splitting, so the fallback result couldn't affect the
+  blame anyway). Linux `net/ethtool`: ~100s → ~5s.
+
+Both are exact — verified line-for-line against the unscoped walk — and merges that genuinely
+combine subfolder changes still run the full fallback.
+
+### Optional multithreading
+
+`setMultithreading(true)` parallelizes the per-file work within each commit (diffing each
+modified file against its parent blob) across a thread pool sized to the available processors.
+The commit traversal itself stays single-threaded; only the independent per-file splits fan out.
+
 ## Have Question or Feedback?
 
 For support questions ("How do I?", "I got this error, why?", ...), please first read the [documentation](https://docs.sonarqube.org) and then head to the [SonarSource Community](https://community.sonarsource.com/c/help/sq/10). The answer to your question has likely already been answered! 🤓
