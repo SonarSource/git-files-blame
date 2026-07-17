@@ -93,10 +93,8 @@ public class FileBlamer {
   }
 
   private void initializeForLargeFileSet(ObjectReader objectReader, GraphNode commit) {
-
-    Set<String> filesToCheck = commit.getAllFiles().stream().map(FileCandidate::getPath).collect(Collectors.toSet());
     try {
-      Map<String, Integer> fileSizes = fileReader.getFileSizes(filesToCheck);
+      Map<String, Integer> fileSizes = fileReader.getFileSizes(objectReader, commit.getAllFiles());
       for (FileCandidate fileCandidate : commit.getAllFiles()) {
         Integer fileSize = fileSizes.get(fileCandidate.getPath());
         if (fileSize == null) {

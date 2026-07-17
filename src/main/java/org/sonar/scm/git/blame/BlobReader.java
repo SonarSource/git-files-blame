@@ -22,7 +22,9 @@ package org.sonar.scm.git.blame;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.UnaryOperator;
@@ -138,8 +140,31 @@ public class BlobReader {
     }
   }
 
-  Map<String, Integer> getFileSizes(Set<String> files) throws IOException {
+  /**
+   * Compute the number of lines of each given file candidate.
+   * Candidates carrying a blob (i.e. anchored to a commit tree) are read from the object store, so that the size
+   * stays consistent with the tree being blamed. This matters for tracked files that are absent from the working
+   * directory, for example a committed file living under a {@code .gitignore}d folder: a working directory walk
+   * would prune it. Candidates without a blob represent working directory files and are read from disk.
+   */
+  Map<String, Integer> getFileSizes(ObjectReader objectReader, Collection<FileCandidate> candidates) throws IOException {
     Map<String, Integer> result = new HashMap<>();
+    Set<String> workingDirPaths = new HashSet<>();
+    for (FileCandidate candidate : candidates) {
+      if (ObjectId.zeroId().equals(candidate.getBlob())) {
+        workingDirPaths.add(candidate.getPath());
+      } else {
+        result.put(candidate.getPath(), loadText(objectReader, candidate.getBlob()).size());
+      }
+    }
+    addWorkingDirFileSizes(workingDirPaths, result);
+    return result;
+  }
+
+  private void addWorkingDirFileSizes(Set<String> files, Map<String, Integer> result) throws IOException {
+    if (files.isEmpty()) {
+      return;
+    }
     try (var treeWalk = new TreeWalk(repository)) {
       prepareTreeWalk(treeWalk);
       while (treeWalk.next()) {
@@ -150,7 +175,5 @@ public class BlobReader {
         }
       }
     }
-
-    return result;
   }
 }
