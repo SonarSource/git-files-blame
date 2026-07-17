@@ -3,6 +3,7 @@ package org.sonar.scm.git.blame.cli;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.sonar.scm.git.blame.BlameResult;
@@ -20,6 +21,7 @@ public class BlameRunner {
       .setStartCommit(startCommit)
       .setFilePaths(filePaths)
       .setMultithreading(multithreading)
+      .setTextComparator(RawTextComparator.WS_IGNORE_ALL)
       .setProgressCallBack((iterationNb, commitHash) -> iterations.incrementAndGet());
 
     long start = System.nanoTime();
