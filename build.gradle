@@ -102,6 +102,12 @@ tasks.register('integrationTestFullQa', Test) {
         showStandardStreams = true
         events 'passed', 'skipped', 'failed', 'standardOut'
     }
+    // The default test JVM heap is sized for the lightweight synthetic-repo suite and is too small for blaming
+    // real clones of the Linux kernel/OpenJDK. Give it a heap generous enough for that, and fork a fresh JVM per
+    // test method so an OOM in one scenario can't poison JGit's static WindowCache for the rest of the suite -
+    // that poisoning is what turned one real OOM into three unrelated-looking MissingObjectException failures.
+    maxHeapSize = '4g'
+    forkEvery = 1
 }
 
 tasks.register('benchmark', Test) {
