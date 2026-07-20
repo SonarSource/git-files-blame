@@ -172,7 +172,7 @@ artifactory {
     clientConfig.info.addEnvironmentProperty('PROJECT_VERSION', "${version}")
 }
 
-sonarqube {
+sonar {
     properties {
         property 'sonar.projectName', projectTitle
         property "sonar.exclusions","cli/**,src/main/java/org/sonar/scm/git/blame/diff/**"
@@ -192,7 +192,7 @@ jacocoTestReport {
     }
 }
 
-tasks['sonarqube'].dependsOn jacocoTestReport
+tasks['sonar'].dependsOn jacocoTestReport
 
 signing {
     def signingKeyId = findProperty("signingKeyId")
