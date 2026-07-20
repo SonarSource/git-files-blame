@@ -499,7 +499,7 @@ class RepositoryBlameCommandIT extends AbstractGitIT {
   void blame_whenContentGiven_thenLinesHaveNullBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
     String c1 = commit("fileA");
-    String unsavedContent = String.join("\n", "line1", "newLine") + "\n";
+    String unsavedContent = "line1\nnewLine\n";
     UnaryOperator<String> fileAContentProvider = filePath -> "fileA".equals(filePath) ? unsavedContent : null;
 
     BlameResult result = blame
