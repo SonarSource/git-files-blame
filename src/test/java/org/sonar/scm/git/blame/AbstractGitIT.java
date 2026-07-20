@@ -35,6 +35,7 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -53,6 +54,11 @@ abstract class AbstractGitIT {
     baseDir = createNewTempFolder();
     git = createRepository(baseDir);
     blame = new RepositoryBlameCommand(git.getRepository());
+  }
+
+  @AfterEach
+  void closeRepository() {
+    git.close();
   }
 
   /**
