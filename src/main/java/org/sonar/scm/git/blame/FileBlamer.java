@@ -252,7 +252,7 @@ public class FileBlamer {
     List<DiffFile> diffFiles = new ArrayList<>(cheap.modified());
     for (String addedPath : cheap.addedPaths()) {
       // Mirror what the full diff produces for an added file with no rename source: a null old path.
-      diffFiles.add(new DiffFile(addedPath, addedPath, ObjectId.zeroId()));
+      diffFiles.add(new DiffFile(addedPath, null, ObjectId.zeroId()));
     }
     return diffFiles;
   }
