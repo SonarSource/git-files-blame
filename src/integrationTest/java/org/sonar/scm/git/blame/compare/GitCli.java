@@ -78,6 +78,23 @@ public final class GitCli {
   }
 
   /**
+   * Deletes a checked-out {@code .mailmap}, if any, so native git's blame doesn't rewrite historical author
+   * identities to their canonical form. This library reads author identity straight off the commit object and
+   * has no mailmap support (JGit has none - see
+   * <a href="https://github.com/eclipse-jgit/jgit/issues/260">jgit#260</a>), so leaving a real-world repo's
+   * {@code .mailmap} in place would make every mailmap'd author a spurious divergence. Native git only reads
+   * this file from the working tree (not a committed blob) in a non-bare repo, so deleting it here is enough -
+   * no config override is needed.
+   */
+  public void disableMailmap(Path repo) {
+    try {
+      Files.deleteIfExists(repo.resolve(".mailmap"));
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to delete .mailmap in " + repo, e);
+    }
+  }
+
+  /**
    * Runs native {@code git blame} configured to match this library's blame engine exactly, so the comparison
    * isolates genuine divergences rather than known algorithm differences (see {@code README.md}, "Blame
    * semantics vs native git"):

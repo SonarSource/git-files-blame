@@ -614,6 +614,25 @@ class RepositoryBlameCommandIT extends AbstractGitIT {
       .contains(tuple("src/WEB-INF/classes/tracked", new String[]{trackedCommit}));
   }
 
+  /**
+   * Author identity is read straight off the commit object; unlike native {@code git blame}, no {@code .mailmap}
+   * resolution is applied (JGit has none - see <a href="https://github.com/eclipse-jgit/jgit/issues/260">jgit#260</a>).
+   * If this test starts failing, JGit likely added mailmap support: update the README's "Blame semantics vs native
+   * git" section and the native-blame-comparison ITs' mailmap neutralization ({@code ScenarioRunner}) accordingly.
+   */
+  @Test
+  void blame_whenRepoHasMailmap_thenAuthorEmailIsNotRemapped() throws IOException, GitAPIException {
+    createFile(baseDir, ".mailmap", "Canonical Name <canonical@example.com> <email@email.com>");
+    commit(".mailmap");
+    createFile(baseDir, "fileA", "line1");
+    commit(1_000L, "fileA");
+
+    BlameResult result = blame.setFilePaths(Set.of("fileA")).call();
+
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getAuthorEmails)
+      .containsOnly(tuple("fileA", new String[]{"email@email.com"}));
+  }
+
   private static void assertAllBlameCommits(BlameResult result, String expectedCommit) {
     Collection<String> allBlameCommits = result.getFileBlames().stream()
       .flatMap(f -> Arrays.stream(f.getCommitHashes()))

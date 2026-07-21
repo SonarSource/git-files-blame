@@ -51,6 +51,7 @@ public final class ScenarioRunner {
     long cloneStart = System.nanoTime();
     strategy.materialize(git, scenario.source(), checkoutDir, scenario);
     long cloneMs = elapsedMs(cloneStart);
+    git.disableMailmap(checkoutDir);
 
     long libraryBlameStart = System.nanoTime();
     BlameResult libraryResult = blameWithLibrary(checkoutDir, scenario);

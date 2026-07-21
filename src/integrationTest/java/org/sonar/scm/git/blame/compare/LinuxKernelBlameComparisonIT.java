@@ -43,4 +43,14 @@ class LinuxKernelBlameComparisonIT extends AbstractBlameComparisonIT {
   protected ComparisonScenario scenario() {
     return SCENARIO;
   }
+
+  /**
+   * This library has no on-demand promisor-fetch (see {@link AbstractBlameComparisonIT#supportsStrategy}), so a
+   * blobless clone of the kernel's full history reliably throws {@code MissingObjectException} rather than
+   * surfacing a blame divergence - documented in {@code README.md}, "Blame semantics vs native git".
+   */
+  @Override
+  protected boolean supportsStrategy(CloneStrategy strategy) {
+    return strategy != CloneStrategy.PARTIAL_SPARSE;
+  }
 }

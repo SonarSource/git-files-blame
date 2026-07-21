@@ -105,6 +105,7 @@ exactly what the `*BlameComparisonIT` integration tests do — see `GitCli`).
 | Indent heuristic | not applied (JGit's `HistogramDiff` has none) | applied (`diff.indentHeuristic=true`) | `-c diff.indentHeuristic=false` |
 | Intra-file move/copy detection | **none** | none by default, but the tests' ground truth used `-M` | *drop* `-M` |
 | Whitespace | set by the caller via `setTextComparator(...)`; the default is `RawTextComparator.DEFAULT` (whitespace-sensitive) | whitespace-sensitive | `-w` **iff** the caller uses `WS_IGNORE_ALL` |
+| `.mailmap` | **not applied** - author identity is read straight off the commit object | applied by default | *(see below - the comparison ITs delete the checked-out `.mailmap` instead)* |
 
 Notes:
 
@@ -118,6 +119,27 @@ Notes:
   `setTextComparator(RawTextComparator.WS_IGNORE_ALL)`, which is equivalent to native `git blame -w`
   and matches its old native/JGit blame implementations. `WS_IGNORE_ALL` and `-w` agree except for
   a handful of whitespace-only hunk-boundary ties that the two implementations break differently.
+- **No `.mailmap` support.** Native `git blame` rewrites historical author identities to their
+  canonical form via `.mailmap` by default; this library has no equivalent because JGit doesn't
+  implement one (tracked upstream as
+  [eclipse-jgit/jgit#260](https://github.com/eclipse-jgit/jgit/issues/260)). On a repo with a
+  real `.mailmap` (e.g. the Linux kernel), this alone accounts for hundreds of author-identity
+  "divergences" that have nothing to do with which commit a line is attributed to. The comparison
+  ITs delete the checked-out `.mailmap` before running native git so the two are compared on equal
+  footing; `RepositoryBlameCommandIT#blame_whenRepoHasMailmap_thenAuthorEmailIsNotRemapped` is a
+  canary that fails if a future JGit version adds mailmap resolution, as a reminder to revisit both
+  this table and that IT workaround.
+
+### Partial (blobless) clones are not supported
+
+`RepositoryBlameCommand` reads objects directly through JGit's `ObjectReader`, which has no
+on-demand promisor fetch. On a `--filter=blob:none` clone, blaming back through history past the
+blobs actually checked out throws `MissingObjectException` instead of returning a (possibly
+incomplete) blame. Native git transparently fetches missing blobs from the promisor remote in this
+situation. `LinuxKernelBlameComparisonIT` and `OpenJdkBlameComparisonIT` therefore skip the
+`PARTIAL_SPARSE` clone strategy against these real, network-backed remotes (see
+`AbstractBlameComparisonIT#supportsStrategy`); tracked as
+[SCANENGINE-23](https://sonarsource.atlassian.net/browse/SCANENGINE-23).
 
 ## Have Question or Feedback?
 
