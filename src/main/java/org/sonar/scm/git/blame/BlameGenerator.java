@@ -111,11 +111,15 @@ public class BlameGenerator {
       // From the merge commit, we'll traverse both branches, and we'll reach the commit before the fork twice
       // The solution is to merge all regions coming from both sides into that node.
       GraphNode existingCommit = queue.ceiling(newCommit);
+      // A GraphNode's own file list can already contain two candidates for the same (path, originalPath):
+      // rename/copy detection can independently resolve two different current-path candidates for the same
+      // original path onto the same ancestor path within a single blameParent/blameParents call. Merge those
+      // regions together rather than letting the collector reject the duplicate key.
       Map<PathAndOriginalPath, FileCandidate> newCommitFilesByPaths = newCommit.getAllFiles().stream()
-        .collect(Collectors.toMap(PathAndOriginalPath::new, f -> f));
+        .collect(Collectors.toMap(PathAndOriginalPath::new, f -> f, BlameGenerator::mergeCandidates));
 
       Map<PathAndOriginalPath, FileCandidate> existingCommitFilesByPaths = existingCommit.getAllFiles().stream()
-        .collect(Collectors.toMap(PathAndOriginalPath::new, f -> f));
+        .collect(Collectors.toMap(PathAndOriginalPath::new, f -> f, BlameGenerator::mergeCandidates));
 
       for (Map.Entry<PathAndOriginalPath, FileCandidate> newFiles : newCommitFilesByPaths.entrySet()) {
         if (existingCommitFilesByPaths.containsKey(newFiles.getKey())) {
@@ -127,6 +131,11 @@ public class BlameGenerator {
     } else {
       queue.add(newCommit);
     }
+  }
+
+  private static FileCandidate mergeCandidates(FileCandidate a, FileCandidate b) {
+    a.mergeRegions(b);
+    return a;
   }
 
   public void generateBlame(ObjectId startCommit) throws IOException, NoHeadException {
