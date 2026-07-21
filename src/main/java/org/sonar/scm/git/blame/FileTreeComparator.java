@@ -22,7 +22,9 @@ package org.sonar.scm.git.blame;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
@@ -42,23 +44,78 @@ import static org.eclipse.jgit.lib.FileMode.TYPE_FILE;
 import static org.eclipse.jgit.lib.FileMode.TYPE_MASK;
 
 public class FileTreeComparator {
-  /**
-   * If the number of files we are interested in is smaller than this threshold, create a filter to only look
-   * for these files. Creating the filter is expensive and is not worth it for large number of files.
-   */
-  private static final int THRESHOLD_FILTER_FILES = 100;
-
   private final MutableObjectId idBuf = new MutableObjectId();
   private final Repository repository;
   private final FilteredRenameDetector filteredRenameDetector;
+
+  /**
+   * Whether the files being blamed all live under some common subfolder of the repository, decided once from the
+   * original request rather than re-derived on every commit. When true, a path-scoped tree diff is worth its own
+   * setup cost: any other subfolder untouched by a given commit is skipped without even being looked at. When the
+   * files being blamed are spread across the repository root (or it's a full-repository blame), most subfolders
+   * are relevant anyway, so scoping the diff has no upside and only adds overhead.
+   */
+  private final boolean useFilteredDiff;
+
+  /**
+   * Whether path-scoping optimizations are enabled. When true, at a merge the expensive full-repository diff is run
+   * for a parent only if a file added relative to it isn't already carried, unchanged, by another parent - see
+   * {@link #supportsCheapDiff()} and {@link FileBlamer}. Always on in production; tests turn it off to compare
+   * against the unscoped result.
+   */
+  private final boolean pathScoping;
 
   private TreeWalk treeWalk;
   private TreeFilter filesAndAnyDiffFilter = null;
   private Set<String> filterFilePaths = null;
 
-  public FileTreeComparator(Repository repository, FilteredRenameDetector filteredRenameDetector) {
+  public FileTreeComparator(Repository repository, FilteredRenameDetector filteredRenameDetector, @Nullable Set<String> filePathsToBlame,
+    boolean pathScoping) {
     this.repository = repository;
     this.filteredRenameDetector = filteredRenameDetector;
+    this.useFilteredDiff = isUnderCommonSubfolder(filePathsToBlame);
+    this.pathScoping = pathScoping;
+  }
+
+  /**
+   * @return true if every path in {@code filePaths} lives under some shared directory of the repository, other
+   *         than the repository root itself.
+   */
+  static boolean isUnderCommonSubfolder(@Nullable Set<String> filePaths) {
+    return commonSubfolder(filePaths).isPresent();
+  }
+
+  /**
+   * @return the deepest directory that every path in {@code filePaths} lives under, or empty if they only share the
+   *         repository root. The returned path has no trailing slash (e.g. {@code "net/ethtool"}).
+   */
+  static Optional<String> commonSubfolder(@Nullable Set<String> filePaths) {
+    if (filePaths == null || filePaths.isEmpty()) {
+      return Optional.empty();
+    }
+    String prefix = longestCommonPrefix(filePaths);
+    int lastSlash = prefix.lastIndexOf('/');
+    return lastSlash < 0 ? Optional.empty() : Optional.of(prefix.substring(0, lastSlash));
+  }
+
+  private static String longestCommonPrefix(Set<String> paths) {
+    String prefix = null;
+    for (String path : paths) {
+      if (prefix == null) {
+        prefix = path;
+        continue;
+      }
+      int len = Math.min(prefix.length(), path.length());
+      int i = 0;
+      while (i < len && prefix.charAt(i) == path.charAt(i)) {
+        i++;
+      }
+      prefix = prefix.substring(0, i);
+      if (prefix.isEmpty()) {
+        return prefix;
+      }
+    }
+    return prefix;
   }
 
   public void initialize(ObjectReader objectReader) {
@@ -97,13 +154,22 @@ public class FileTreeComparator {
     if (child == null) {
       return computeForWorkingDir(parent, filePathsToInclude);
     }
-    if (filePathsToInclude.size() < THRESHOLD_FILTER_FILES) {
-      List<DiffFile> modifiedFiles = findMovedFilesForSmallSet(parent, child, filePathsToInclude);
+    if (useFilteredDiff) {
+      List<DiffFile> modifiedFiles = findMovedFilesWithPathFilter(parent, child, filePathsToInclude);
       if (modifiedFiles != null) {
         return modifiedFiles;
       }
     }
 
+    return fullDiff(parent, child, filePathsToInclude);
+  }
+
+  /**
+   * The full-repository diff plus rename detection: needed to find where a blamed file that appears added came from,
+   * since its rename source can be anywhere in the tree (even outside the blamed subfolder). This is the expensive
+   * path - on a large repository it scans the entire parent-to-child diff.
+   */
+  List<DiffFile> fullDiff(RevCommit parent, RevCommit child, Set<String> filePathsToInclude) throws IOException {
     // to detect renames, we need to collect all modified files in the repo
     Collection<DiffEntry> diffEntries = getDiffEntries(parent, child);
     diffEntries = detectRenames(filePathsToInclude, diffEntries);
@@ -117,17 +183,8 @@ public class FileTreeComparator {
   }
 
   @CheckForNull
-  private List<DiffFile> findMovedFilesForSmallSet(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
-    if (!filePaths.equals(filterFilePaths)) {
-      // this is expensive to compute
-      TreeFilter pathFilterGroup = PathFilterGroup.createFromStrings(filePaths);
-      filesAndAnyDiffFilter = AndTreeFilter.create(pathFilterGroup, TreeFilter.ANY_DIFF);
-      filterFilePaths = filePaths;
-    }
-
-    // With this filter, we'll traverse both trees, only visiting the files that are being blamed and that are different between both trees.
-    treeWalk.setFilter(filesAndAnyDiffFilter);
-    treeWalk.reset(parent.getTree(), child.getTree());
+  private List<DiffFile> findMovedFilesWithPathFilter(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
+    startPathFilteredWalk(parent, child, filePaths);
 
     List<DiffFile> movedFiles = new ArrayList<>(filePaths.size());
 
@@ -142,6 +199,63 @@ public class FileTreeComparator {
       }
     }
     return movedFiles;
+  }
+
+  private void startPathFilteredWalk(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
+    if (!filePaths.equals(filterFilePaths)) {
+      // this is expensive to compute
+      TreeFilter pathFilterGroup = PathFilterGroup.createFromStrings(filePaths);
+      filesAndAnyDiffFilter = AndTreeFilter.create(pathFilterGroup, TreeFilter.ANY_DIFF);
+      filterFilePaths = filePaths;
+    }
+    // With this filter, we'll traverse both trees, only visiting the files that are being blamed and that are different between both trees.
+    treeWalk.setFilter(filesAndAnyDiffFilter);
+    treeWalk.reset(parent.getTree(), child.getTree());
+  }
+
+  /**
+   * @return true if the path-filtered diff can be used, i.e. all blamed files share a common subfolder so a filter
+   *         on them is worth building. Only then can {@link #cheapDiff} split blamed files into modified vs added
+   *         without the full-repository diff.
+   */
+  boolean supportsCheapDiff() {
+    return useFilteredDiff && pathScoping;
+  }
+
+  /**
+   * A path-filtered diff of the blamed files between {@code parent} and {@code child} that never falls back to the
+   * full-repository diff: blamed files present in the parent (possibly modified) are resolved to their parent blob,
+   * while blamed files absent from the parent are only reported as added paths - resolving where an added file came
+   * from (its rename source) still needs {@link #fullDiff}.
+   */
+  CheapDiff cheapDiff(RevCommit parent, RevCommit child, Set<String> filePaths) throws IOException {
+    startPathFilteredWalk(parent, child, filePaths);
+
+    List<DiffFile> modified = new ArrayList<>();
+    Set<String> addedPaths = new HashSet<>();
+    while (treeWalk.next()) {
+      String path = treeWalk.getPathString();
+      if (filePaths.contains(path)) {
+        treeWalk.getObjectId(idBuf, 0);
+        if (isAddedOrNotFile()) {
+          addedPaths.add(path);
+        } else {
+          modified.add(new DiffFile(path, path, idBuf.toObjectId()));
+        }
+      }
+    }
+    return new CheapDiff(modified, addedPaths);
+  }
+
+  /**
+   * Outcome of {@link #cheapDiff}: the blamed files that changed between the two commits, split into files still
+   * present in the parent ({@link #modified}, resolved to their parent blob) and files absent from the parent
+   * ({@link #addedPaths}, whose rename source, if any, is not yet known). Blamed files in neither set are unchanged.
+   */
+  record CheapDiff(List<DiffFile> modified, Set<String> addedPaths) {
+    boolean hasAddedPaths() {
+      return !addedPaths.isEmpty();
+    }
   }
 
   private boolean isAddedOrNotFile() {

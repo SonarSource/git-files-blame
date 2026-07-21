@@ -27,9 +27,11 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
@@ -114,6 +116,123 @@ public final class SyntheticRepoGenerator {
       pointHeadTo(repository, parentCommit);
       return new Stats(config.numFiles(), config.linesPerFile(), config.numCommits(), parentCommit);
     }
+  }
+
+  /**
+   * @param numDomains number of top-level directories the repository is split into, each getting its own subtree -
+   *                    mirrors a monorepo's directory layout, so a domain nobody touched in a given commit keeps
+   *                    the exact same subtree object id across commits, which is what lets a path-scoped tree diff
+   *                    skip over it without even looking inside
+   * @param filesPerDomain files per domain; {@code numDomains * filesPerDomain} files in total
+   * @param filesModifiedPerCommit how many files, picked at random from across ALL domains (not just the tracked
+   *                                one), get a one-line rewrite on each commit
+   */
+  public record MonorepoConfig(int numDomains, int filesPerDomain, int linesPerFile, int numCommits, int filesModifiedPerCommit, long seed) {
+    public int totalFiles() {
+      return numDomains * filesPerDomain;
+    }
+  }
+
+  /**
+   * @param trackedFiles every path belonging to the one domain a benchmark should pass to
+   *                      {@code RepositoryBlameCommand.setFilePaths(...)}, simulating analyzing a single
+   *                      subdirectory of a much larger monorepo
+   */
+  public record MonorepoStats(int numDomains, int filesPerDomain, int numCommits, ObjectId head, Set<String> trackedFiles) {
+    public int totalFiles() {
+      return numDomains * filesPerDomain;
+    }
+  }
+
+  public static MonorepoStats generateMonorepo(Path bareRepoDir, MonorepoConfig config) throws IOException {
+    Repository repository = new FileRepositoryBuilder().setGitDir(bareRepoDir.toFile()).build();
+    repository.create(true);
+
+    try (repository; ObjectInserter inserter = repository.newObjectInserter()) {
+      Random random = new Random(config.seed());
+
+      String[] domainNames = buildDomainNames(config.numDomains());
+      List<String> paths = new ArrayList<>(config.totalFiles());
+      Map<String, String[]> linesByPath = new HashMap<>();
+      Map<String, ObjectId> blobByPath = new HashMap<>();
+      Map<String, Set<String>> pathsByDomain = new HashMap<>();
+      for (String domain : domainNames) {
+        Set<String> domainPaths = new HashSet<>();
+        for (String fileName : buildSortedFileNames(config.filesPerDomain())) {
+          String path = domain + "/" + fileName;
+          paths.add(path);
+          domainPaths.add(path);
+          String[] lines = initialLines(path, config.linesPerFile());
+          linesByPath.put(path, lines);
+          blobByPath.put(path, insertBlob(inserter, lines));
+        }
+        pathsByDomain.put(domain, domainPaths);
+      }
+
+      Map<String, ObjectId> domainTreeIdByDomain = new HashMap<>();
+      for (String domain : domainNames) {
+        domainTreeIdByDomain.put(domain, buildDomainTree(inserter, pathsByDomain.get(domain), blobByPath));
+      }
+
+      ObjectId parentCommit = null;
+      Instant commitTime = Instant.parse("2015-01-01T00:00:00Z");
+      for (int commitIdx = 0; commitIdx < config.numCommits(); commitIdx++) {
+        Set<String> touchedDomains = new HashSet<>();
+        for (int modIdx = 0; modIdx < config.filesModifiedPerCommit(); modIdx++) {
+          String path = paths.get(random.nextInt(paths.size()));
+          rewriteRandomLine(inserter, linesByPath, blobByPath, path, random, commitIdx);
+          touchedDomains.add(domainOf(path));
+        }
+
+        for (String domain : touchedDomains) {
+          domainTreeIdByDomain.put(domain, buildDomainTree(inserter, pathsByDomain.get(domain), blobByPath));
+        }
+
+        ObjectId treeId = buildRootTree(inserter, domainNames, domainTreeIdByDomain);
+        PersonIdent ident = new PersonIdent("generator", "generator@example.com", commitTime, ZoneOffset.UTC);
+        parentCommit = createCommit(inserter, treeId, parentCommit, ident, "commit " + commitIdx);
+        commitTime = commitTime.plusSeconds(60);
+      }
+
+      inserter.flush();
+      pointHeadTo(repository, parentCommit);
+      return new MonorepoStats(config.numDomains(), config.filesPerDomain(), config.numCommits(), parentCommit, pathsByDomain.get(domainNames[0]));
+    }
+  }
+
+  private static String[] buildDomainNames(int numDomains) {
+    String[] names = new String[numDomains];
+    int digits = Integer.toString(Math.max(numDomains - 1, 1)).length();
+    for (int i = 0; i < numDomains; i++) {
+      names[i] = "domain" + zeroPad(i, digits);
+    }
+    return names;
+  }
+
+  private static String domainOf(String path) {
+    return path.substring(0, path.indexOf('/'));
+  }
+
+  private static ObjectId buildDomainTree(ObjectInserter inserter, Set<String> domainPaths, Map<String, ObjectId> blobByPath) throws IOException {
+    String[] sortedFileNames = domainPaths.stream().map(p -> p.substring(p.indexOf('/') + 1)).sorted().toArray(String[]::new);
+    String domain = domainOf(domainPaths.iterator().next());
+
+    TreeFormatter treeFormatter = new TreeFormatter();
+    for (String fileName : sortedFileNames) {
+      treeFormatter.append(fileName, FileMode.REGULAR_FILE, blobByPath.get(domain + "/" + fileName));
+    }
+    return inserter.insert(treeFormatter);
+  }
+
+  private static ObjectId buildRootTree(ObjectInserter inserter, String[] domainNames, Map<String, ObjectId> domainTreeIdByDomain) throws IOException {
+    String[] sortedDomains = domainNames.clone();
+    Arrays.sort(sortedDomains);
+
+    TreeFormatter treeFormatter = new TreeFormatter();
+    for (String domain : sortedDomains) {
+      treeFormatter.append(domain, FileMode.TREE, domainTreeIdByDomain.get(domain));
+    }
+    return inserter.insert(treeFormatter);
   }
 
   private static void rewriteRandomLine(ObjectInserter inserter, Map<String, String[]> linesByPath, Map<String, ObjectId> blobByPath, String path,

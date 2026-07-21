@@ -46,6 +46,7 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
   private ObjectId startCommit = null;
   private Set<String> filePaths = null;
   private boolean multithreading = false;
+  private boolean pathScoping = true;
   private BiConsumer<Integer, String> progressCallBack;
   private UnaryOperator<String> fileContentProvider = null;
 
@@ -66,6 +67,17 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
    */
   public RepositoryBlameCommand setMultithreading(boolean multithreading) {
     this.multithreading = multithreading;
+    return this;
+  }
+
+  /**
+   * When all blamed files live under a common subfolder, the blame is scoped to that subfolder: the walk collapses
+   * chains of commits that don't touch it, and the expensive full-repository rename diff is skipped at a merge for
+   * any parent that doesn't need it. This produces the exact same blame, only faster, and is always on in
+   * production. Exposed only so tests can compare the scoped result against the unscoped one.
+   */
+  RepositoryBlameCommand setPathScoping(boolean pathScoping) {
+    this.pathScoping = pathScoping;
     return this;
   }
 
@@ -123,15 +135,17 @@ public class RepositoryBlameCommand extends GitCommand<BlameResult> {
     try {
       BlobReader blobReader = new BlobReader(repo, fileContentProvider);
       FilteredRenameDetector filteredRenameDetector = new FilteredRenameDetector(new RenameDetector(repo));
-      FileTreeComparator fileTreeComparator = new FileTreeComparator(repo, filteredRenameDetector);
+      FileTreeComparator fileTreeComparator = new FileTreeComparator(repo, filteredRenameDetector, filePaths, pathScoping);
       FileBlamer fileBlamer = new FileBlamer(fileTreeComparator, diffAlgorithm, textComparator, blobReader, blameResult, multithreading);
 
       if (filePaths != null && filePaths.isEmpty()) {
         return blameResult;
       }
 
+      String pathScopeFolder = pathScoping ? FileTreeComparator.commonSubfolder(filePaths).orElse(null) : null;
+
       GraphNodeFactory graphNodeFactory = new GraphNodeFactory(repo, filePaths);
-      BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, graphNodeFactory, progressCallBack);
+      BlameGenerator blameGenerator = new BlameGenerator(repo, fileBlamer, graphNodeFactory, progressCallBack, pathScopeFolder);
       blameGenerator.generateBlame(startCommit);
     } catch (IOException e) {
       throw new IllegalStateException("Failed to blame repository files", e);
