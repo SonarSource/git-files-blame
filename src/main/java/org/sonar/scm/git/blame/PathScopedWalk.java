@@ -162,11 +162,6 @@ class PathScopedWalk {
    * {@code commit}, so the blame regions can be moved onto it directly.
    */
   RevCommit collapse(RevCommit commit) throws IOException {
-    RevCommit cached = collapseCache.get(commit.getId());
-    if (cached != null) {
-      return cached;
-    }
-
     List<ObjectId> skipped = new ArrayList<>();
     RevCommit current = commit;
     boolean canSkip = true;
