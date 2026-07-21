@@ -22,6 +22,7 @@ package org.sonar.scm.git.blame.compare;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -251,13 +252,22 @@ class LinuxKernelBlameComparisonIT extends AbstractBlameComparisonIT {
     Map.entry(10182, INITIAL_IMPORT),
     Map.entry(10257, INITIAL_IMPORT));
 
+  /**
+   * kernel/sched/fair.c is still blamed by both native git and this library (for its clone/blame timing), but not
+   * compared: its native-git ground truth itself isn't stable run-to-run in CI - two runs of the exact same commit
+   * (no code difference at all in fair.c's path) disagreed with each other on ~149 lines, while both native git and
+   * this library were independently confirmed fully deterministic (repeated invocations, matching git version,
+   * build options and architecture) everywhere this was tested locally. See
+   * <a href="https://sonarsource.atlassian.net/browse/GFB-54">GFB-54</a>.
+   */
   private static final ComparisonScenario SCENARIO = new ComparisonScenario(
     "linux-kernel",
     new RepoSource.Remote("https://github.com/torvalds/linux.git"),
     "v6.6",
     List.of("kernel/sched"),
     List.of("kernel/sched/core.c", "kernel/sched/fair.c"),
-    Map.of("kernel/sched/core.c", CORE_C_KNOWN_DIVERGENT_LINES));
+    Map.of("kernel/sched/core.c", CORE_C_KNOWN_DIVERGENT_LINES),
+    Set.of("kernel/sched/fair.c"));
 
   @Override
   protected ComparisonScenario scenario() {

@@ -60,6 +60,10 @@ public final class ScenarioRunner {
     long nativeBlameStart = System.nanoTime();
     for (String targetFile : scenario.targetFiles()) {
       String porcelain = git.blameLinePorcelain(checkoutDir, scenario.ref(), targetFile);
+      if (scenario.unassertedFiles().contains(targetFile)) {
+        // Still blamed by both sides so its clone/blame timing is measured, but not compared - see GFB-54.
+        continue;
+      }
       List<NativeLineBlame> nativeBlame = LinePorcelainParser.parse(porcelain);
       Map<Integer, NativeLineBlame> knownAmbiguousLines = scenario.knownAmbiguousLines().getOrDefault(targetFile, Map.of());
       BlameComparator.assertSameBlame(targetFile, libraryResult.getFileBlameByPath().get(targetFile), nativeBlame, knownAmbiguousLines);

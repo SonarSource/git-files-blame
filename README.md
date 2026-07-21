@@ -141,6 +141,17 @@ situation. `LinuxKernelBlameComparisonIT` and `OpenJdkBlameComparisonIT` therefo
 `AbstractBlameComparisonIT#supportsStrategy`); tracked as
 [SCANENGINE-23](https://sonarsource.atlassian.net/browse/SCANENGINE-23).
 
+### kernel/sched/fair.c's native-git ground truth isn't stable in CI
+
+`LinuxKernelBlameComparisonIT` blames `kernel/sched/fair.c` for its clone/blame timing but doesn't
+assert the result matches native git line-for-line, unlike `kernel/sched/core.c`. Two full-QA CI
+runs of the exact same commit disagreed with each other on ~149 lines of `fair.c`, even though
+nothing in that commit's diff could affect `fair.c`'s code path. Both native git and this library
+were independently confirmed fully deterministic everywhere this was tested locally (repeated
+invocations, matching git version/build-options/architecture between the runner and a dev
+machine) - the actual mechanism wasn't found. See
+[GFB-54](https://sonarsource.atlassian.net/browse/GFB-54).
+
 ## Have Question or Feedback?
 
 For support questions ("How do I?", "I got this error, why?", ...), please first read the [documentation](https://docs.sonarqube.org) and then head to the [SonarSource Community](https://community.sonarsource.com/c/help/sq/10). The answer to your question has likely already been answered! 🤓
