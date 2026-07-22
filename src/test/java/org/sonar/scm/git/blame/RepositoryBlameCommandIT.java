@@ -495,6 +495,84 @@ class RepositoryBlameCommandIT extends AbstractGitIT {
     assertAllBlameCommits(result, c1);
   }
 
+  /**
+   * Reproduces https://sonarsource.atlassian.net/browse/GFB-7 : a "Duplicate key" IllegalStateException
+   * thrown by BlameGenerator.push() when a single blameParent call maps two different current-path
+   * candidates for the same original path onto the same ancestor path.
+   * <pre>
+   *      c0(root,w)
+   *      /        \
+   * c1a(fileA,fileB)  c1w(w modified, root deleted)
+   *   /        \                |
+   * c2(fileA)  c3(fileB)        |
+   *      \      \               |
+   *       \    c3b(fileB renamed to fileA)
+   *        \    /                |
+   *        c4(fileA)-------------
+   *              \
+   *              c5(fileA,w)  <--- HEAD
+   * </pre>
+   * root is deleted in c1a and replaced by two exact copies of its content, fileA and fileB: the rename
+   * detector pairs one of them as a RENAME and the other as a COPY, but both share the same old path
+   * "root". fileA's blamed regions independently split across c2 and c3/c3b, then reconverge at c4, so c1a
+   * ends up holding two candidates for the same original path at two different current paths (fileA and
+   * fileB). When c1a is diffed against its own parent c0 in a single blameParent call, both of those
+   * candidates independently resolve to path "root", producing two FileCandidate entries with an identical
+   * (path, originalPath) key before push()'s queue-revisit merge (designed only for collisions arriving
+   * from two separate calls) ever gets a chance to run.
+   */
+  @Test
+  void blame_whenTwoDifferentPathsIndependentlyRenameFromTheSameAncestorPath_thenRegionsShouldMerge() throws IOException, GitAPIException {
+    // Explicit, strictly increasing timestamps: BlameGenerator's traversal queue orders commits by time,
+    // and same-second (default "now") timestamps on rapid-fire test commits can tie, breaking revisit
+    // detection in a way unrelated to the bug this test targets.
+    long t = 1_700_000_000_000L;
+
+    createFile(baseDir, "root", "line1", "line2", "line3", "line4");
+    createFile(baseDir, "w", "w1");
+    String c0 = commit(t += 60_000, ".");
+
+    rm("root");
+    createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
+    createFile(baseDir, "fileB", "line1", "line2", "line3", "line4");
+    commit(t += 60_000, ".");
+    String c1a = git.getRepository().resolve(Constants.HEAD).getName();
+
+    createFile(baseDir, "fileA", "line1", "line2");
+    rm("fileB");
+    String c2 = commit(t += 60_000, ".");
+
+    resetHard(c1a);
+    createFile(baseDir, "fileB", "line3", "line4");
+    rm("fileA");
+    commit(t += 60_000, ".");
+
+    rm("fileB");
+    createFile(baseDir, "fileA", "line3", "line4");
+    commit(t += 60_000, "fileA");
+
+    merge(c2);
+    rm("fileB");
+    createFile(baseDir, "fileA", "line1", "line2", "line3", "line4");
+    git.add().addFilepattern("fileA").call();
+    String c4 = commit(t += 60_000);
+
+    resetHard(c0);
+    rm("root");
+    createFile(baseDir, "w", "w1", "w2");
+    String c1w = commit(t += 60_000, ".");
+
+    resetHard(c4);
+    merge(c1w);
+
+    BlameResult result = blame.call();
+
+    assertThat(result.getFileBlames()).extracting(FileBlame::getPath, FileBlame::getCommitHashes)
+      .containsOnly(
+        tuple("fileA", new String[] {c0, c0, c0, c0}),
+        tuple("w", new String[] {c0, c1w}));
+  }
+
   @Test
   void blame_whenContentGiven_thenLinesHaveNullBlame() throws IOException, GitAPIException {
     createFile(baseDir, "fileA", "line1");
