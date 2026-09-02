@@ -91,6 +91,67 @@ combine subfolder changes still run the full fallback.
 modified file against its parent blob) across a thread pool sized to the available processors.
 The commit traversal itself stays single-threaded; only the independent per-file splits fan out.
 
+## Blame semantics vs native git
+
+Besides being faster, this library also makes a few **behavioral** choices that differ from a
+plain `git blame`. They rarely matter, but on files with lots of repeated/boilerplate lines
+(e.g. Javadoc) they change which commit a line is attributed to. To reproduce native git's
+output line-for-line you must invoke `git blame` with the matching flags shown below (this is
+exactly what the `*BlameComparisonIT` integration tests do — see `GitCli`).
+
+| Behavior | This library | Plain `git blame` default | Flag to make native match |
+| --- | --- | --- | --- |
+| Diff algorithm | JGit `HistogramDiff` | Myers | `--diff-algorithm=histogram` |
+| Indent heuristic | not applied (JGit's `HistogramDiff` has none) | applied (`diff.indentHeuristic=true`) | `-c diff.indentHeuristic=false` |
+| Intra-file move/copy detection | **none** | none by default, but the tests' ground truth used `-M` | *drop* `-M` |
+| Whitespace | set by the caller via `setTextComparator(...)`; the default is `RawTextComparator.DEFAULT` (whitespace-sensitive) | whitespace-sensitive | `-w` **iff** the caller uses `WS_IGNORE_ALL` |
+| `.mailmap` | **not applied** - author identity is read straight off the commit object | applied by default | *(see below - the comparison ITs delete the checked-out `.mailmap` instead)* |
+
+Notes:
+
+- **Move/copy detection is the big one.** `git blame -M`/`-C` detect that a block of added lines
+  is a move or copy of lines already present, and attribute them to the *original* source commit.
+  This library does no such intra-file move/copy detection, so it attributes those lines to the
+  commit that actually added them. Comparing against `git blame -M` therefore shows large,
+  systematic (but expected) differences; comparing without `-M` does not.
+- **Whitespace handling is delegated to the caller.** The library defaults to whitespace-sensitive
+  blame. SonarQube's scanner engine (the primary consumer) opts into
+  `setTextComparator(RawTextComparator.WS_IGNORE_ALL)`, which is equivalent to native `git blame -w`
+  and matches its old native/JGit blame implementations. `WS_IGNORE_ALL` and `-w` agree except for
+  a handful of whitespace-only hunk-boundary ties that the two implementations break differently.
+- **No `.mailmap` support.** Native `git blame` rewrites historical author identities to their
+  canonical form via `.mailmap` by default; this library has no equivalent because JGit doesn't
+  implement one (tracked upstream as
+  [eclipse-jgit/jgit#260](https://github.com/eclipse-jgit/jgit/issues/260)). On a repo with a
+  real `.mailmap` (e.g. the Linux kernel), this alone accounts for hundreds of author-identity
+  "divergences" that have nothing to do with which commit a line is attributed to. The comparison
+  ITs delete the checked-out `.mailmap` before running native git so the two are compared on equal
+  footing; `RepositoryBlameCommandIT#blame_whenRepoHasMailmap_thenAuthorEmailIsNotRemapped` is a
+  canary that fails if a future JGit version adds mailmap resolution, as a reminder to revisit both
+  this table and that IT workaround.
+
+### Partial (blobless) clones are not supported
+
+`RepositoryBlameCommand` reads objects directly through JGit's `ObjectReader`, which has no
+on-demand promisor fetch. On a `--filter=blob:none` clone, blaming back through history past the
+blobs actually checked out throws `MissingObjectException` instead of returning a (possibly
+incomplete) blame. Native git transparently fetches missing blobs from the promisor remote in this
+situation. `LinuxKernelBlameComparisonIT` and `OpenJdkBlameComparisonIT` therefore skip the
+`PARTIAL_SPARSE` clone strategy against these real, network-backed remotes (see
+`AbstractBlameComparisonIT#supportsStrategy`); tracked as
+[SCANENGINE-23](https://sonarsource.atlassian.net/browse/SCANENGINE-23).
+
+### kernel/sched/fair.c's native-git ground truth isn't stable in CI
+
+`LinuxKernelBlameComparisonIT` blames `kernel/sched/fair.c` for its clone/blame timing but doesn't
+assert the result matches native git line-for-line, unlike `kernel/sched/core.c`. Two full-QA CI
+runs of the exact same commit disagreed with each other on ~149 lines of `fair.c`, even though
+nothing in that commit's diff could affect `fair.c`'s code path. Both native git and this library
+were independently confirmed fully deterministic everywhere this was tested locally (repeated
+invocations, matching git version/build-options/architecture between the runner and a dev
+machine) - the actual mechanism wasn't found. See
+[GFB-54](https://sonarsource.atlassian.net/browse/GFB-54).
+
 ## Have Question or Feedback?
 
 For support questions ("How do I?", "I got this error, why?", ...), please first read the [documentation](https://docs.sonarqube.org) and then head to the [SonarSource Community](https://community.sonarsource.com/c/help/sq/10). The answer to your question has likely already been answered! 🤓
