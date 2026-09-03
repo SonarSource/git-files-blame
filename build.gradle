@@ -41,7 +41,7 @@ dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
     implementation 'org.eclipse.jgit:org.eclipse.jgit:7.7.0.202606012155-r'
-    implementation 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'org.slf4j:slf4j-api:2.0.18'
 
     testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
