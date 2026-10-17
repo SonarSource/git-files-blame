@@ -22,15 +22,15 @@ jobs:
     runs-on: github-ubuntu-latest-s
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
-          version: 2025.7.12
-      - uses: SonarSource/ci-github-actions/config-gradle@v1
+          version: 2026.10.8
+      - uses: SonarSource/ci-github-actions/config-gradle@v2
       - run: ./gradlew integrationTest --stacktrace
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: quick-it-results
           path: '**/build/test-results/integrationTest/**/*.xml'
@@ -44,15 +44,15 @@ jobs:
       github.ref == 'refs/heads/master' ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-qa'))
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
-          version: 2025.7.12
-      - uses: SonarSource/ci-github-actions/config-gradle@v1
+          version: 2026.10.8
+      - uses: SonarSource/ci-github-actions/config-gradle@v2
       - run: ./gradlew integrationTestFullQa --stacktrace
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: full-qa-it-results
           path: '**/build/test-results/integrationTestFullQa/**/*.xml'
