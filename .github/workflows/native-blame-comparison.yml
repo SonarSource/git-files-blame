@@ -22,15 +22,15 @@ jobs:
     runs-on: github-ubuntu-latest-s
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
-          version: 2025.7.12
+          version: 2026.10.13
       - uses: SonarSource/ci-github-actions/config-gradle@v1
       - run: ./gradlew integrationTest --stacktrace
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: quick-it-results
           path: '**/build/test-results/integrationTest/**/*.xml'
@@ -44,15 +44,15 @@ jobs:
       github.ref == 'refs/heads/master' ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-qa'))
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
-          version: 2025.7.12
+          version: 2026.10.13
       - uses: SonarSource/ci-github-actions/config-gradle@v1
       - run: ./gradlew integrationTestFullQa --stacktrace
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: full-qa-it-results
           path: '**/build/test-results/integrationTestFullQa/**/*.xml'
