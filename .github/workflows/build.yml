@@ -25,9 +25,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
-          version: 2026.10.13
+          version: 2026.10.17
       - uses: SonarSource/ci-github-actions/build-gradle@v2
         with:
           artifactory-reader-role: private-reader
@@ -58,9 +58,9 @@ jobs:
           fetch-depth: 0
       - name: Configure long paths
         run: git config --global core.longpaths true
-      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
-          version: 2026.10.13
+          version: 2026.10.17
       - uses: SonarSource/ci-github-actions/config-gradle@v2
         with:
           artifactory-reader-role: private-reader
@@ -84,10 +84,10 @@ jobs:
     name: Promote
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
           cache_save: false
-          version: 2026.10.13
+          version: 2026.10.17
       - uses: SonarSource/ci-github-actions/get-build-number@v2
       - uses: SonarSource/ci-github-actions/promote@v2
         with:
