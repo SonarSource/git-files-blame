@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
       - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
-          version: 2026.10.17
+          version: 2026.10.18
       - uses: SonarSource/ci-github-actions/build-gradle@v2
         with:
           artifactory-reader-role: private-reader
@@ -60,7 +60,7 @@ jobs:
         run: git config --global core.longpaths true
       - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
-          version: 2026.10.17
+          version: 2026.10.18
       - uses: SonarSource/ci-github-actions/config-gradle@v2
         with:
           artifactory-reader-role: private-reader
@@ -87,7 +87,7 @@ jobs:
       - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
           cache_save: false
-          version: 2026.10.17
+          version: 2026.10.18
       - uses: SonarSource/ci-github-actions/get-build-number@v2
       - uses: SonarSource/ci-github-actions/promote@v2
         with:
