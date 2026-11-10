@@ -44,7 +44,7 @@ dependencies {
     implementation rootProject
     // The library declares JGit as 'implementation', so it is not exposed transitively on our
     // compile classpath. We use JGit types directly (Repository, TreeWalk, ...), hence a direct dependency.
-    implementation 'org.eclipse.jgit:org.eclipse.jgit:7.8.0.202609011348-r'
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:7.8.1.202611041320-r'
     implementation 'info.picocli:picocli:4.7.7'
     // JGit 7.x depends on slf4j-api 2.x, so the logging binding must be a 2.x provider.
     implementation 'org.slf4j:slf4j-api:2.0.20'
